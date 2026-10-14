@@ -29,6 +29,7 @@ namespace EOS
 
         private static PlatformInterface s_eosPlatformInterface;
         private ConnectManager _connectManager;
+        private AuthManager _authManager;
         
 
         // we have to load the C libs manually in the editor because unity can't compile them in the run time . but they are ok in the build
@@ -95,6 +96,7 @@ namespace EOS
             Assert.IsNotNull(s_eosPlatformInterface, "[EOSSDKManager] CreatePlatformInterface returned null!");
 
             _connectManager = new ConnectManager(s_eosPlatformInterface);
+            _authManager = new AuthManager(s_eosPlatformInterface);
         }
         
         private void Update()
@@ -202,6 +204,11 @@ namespace EOS
         public ConnectManager ConnectManager
         {
             get => _connectManager;
+        }
+
+        public AuthManager AuthManager
+        {
+            get => _authManager;
         }
     }
 }

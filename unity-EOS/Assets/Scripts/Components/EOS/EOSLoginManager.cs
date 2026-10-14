@@ -30,10 +30,21 @@ namespace EOS
         private void Awake() {
             Assert.IsNotNull(EOSSDKManager.Instance, "[EOSLoginManager] EOSSDKManager.Instance is null! Make sure EOSSDKManager is on a GameObject in the scene and active.");
             Assert.IsNotNull(EOSSDKManager.Instance.ConnectManager, "[EOSLoginManager] ConnectManager is null! Check if EOSSDKManager initialized successfully.");
+            Assert.IsNotNull(EOSSDKManager.Instance.AuthManager, "[EOSLoginManager] AuthManager is null! Check if EOSSDKManager initialized successfully.");
 
             guestLoginButton.onClick.AddListener(GuestLogin);
             epicGamesLoginButton.onClick.AddListener(EpicGamesLogin);
             steamLoginButton.onClick.AddListener(SteamLogin);
+        }
+
+        private void Start() {
+            // If launched via Epic Games Launcher with -AUTH_PASSWORD, sign in automatically
+            // used Start() to make the call after the eos sdk is initialized in the Awake() method
+            if (AuthManager.HasExchangeCode())
+            {
+                Debug.Log("[EOSLoginManager] Epic Games Launcher exchange code detected. Auto-logging in...");
+                EpicGamesLogin();
+            }
         }
 
         private void OnEnable() {
@@ -74,7 +85,39 @@ namespace EOS
 
         private void EpicGamesLogin() 
         {
-            
+            SetButtonsInteractable(false);
+
+            EOSSDKManager.Instance.AuthManager.Login((authSuccess, authError) =>
+            {
+                if (!authSuccess)
+                {
+                    Debug.LogError($"[EOSLoginManager] Epic Games Auth Login Failed: {authError}");
+                    SetButtonsInteractable(true);
+                    return;
+                }
+
+                string userAuthToken = EOSSDKManager.Instance.AuthManager.CopyUserAuthToken();
+                if (string.IsNullOrEmpty(userAuthToken))
+                {
+                    Debug.LogError("[EOSLoginManager] Failed to copy Epic user auth token!");
+                    SetButtonsInteractable(true);
+                    return;
+                }
+
+                EOSSDKManager.Instance.ConnectManager.LoginWithEpic(userAuthToken, (connectSuccess, connectError) =>
+                {
+                    if (connectSuccess)
+                    {
+                        Debug.Log($"<color=green>[EOSLoginManager] Epic Games Login Success! Loading {nextSceneName}...</color>");
+                        SceneManager.LoadScene(nextSceneName);
+                    }
+                    else
+                    {
+                        Debug.LogError($"[EOSLoginManager] Epic Games Connect Login Failed: {connectError}");
+                        SetButtonsInteractable(true);
+                    }
+                });
+            });
         }
 
         private void SteamLogin() 

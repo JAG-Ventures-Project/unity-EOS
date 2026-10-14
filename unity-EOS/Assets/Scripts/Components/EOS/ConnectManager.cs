@@ -74,6 +74,16 @@ namespace EOS
             PerformConnectLogin(ExternalCredentialType.SteamSessionTicket, steamTicketHex, displayName, onComplete);
         }
 
+        public void LoginWithEpic(string epicAuthToken, Action<bool, string> onComplete)
+        {
+            if (string.IsNullOrEmpty(epicAuthToken))
+            {
+                onComplete?.Invoke(false, "Epic auth token is null or empty!");
+                return;
+            }
+            PerformConnectLogin(ExternalCredentialType.Epic, epicAuthToken, null, onComplete);
+        }
+
         private void PerformConnectLogin(ExternalCredentialType credentialType, string token, string displayName, Action<bool, string> onComplete)
         {
             var loginOptions = new LoginOptions
