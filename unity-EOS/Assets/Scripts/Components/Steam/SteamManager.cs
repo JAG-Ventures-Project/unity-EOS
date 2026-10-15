@@ -18,7 +18,6 @@ public class SteamManager : MonoBehaviour
         }
 
         s_instance = this;
-        DontDestroyOnLoad(gameObject);
 
         if (!Packsize.Test())
         {

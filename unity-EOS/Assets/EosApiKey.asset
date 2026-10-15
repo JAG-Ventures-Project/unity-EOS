@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2006c7a2843279e4598781ed39185dd0, type: 3}
   m_Name: EosApiKey
   m_EditorClassIdentifier: Mirror.Transports::EosApiKey
-  epicProductName: JAG Vn
+  epicProductName: JAG_Vn
   epicProductVersion: 1.0
   epicProductId: 54ee559bda854761be7e4682b1e18e84
-  epicSandboxId: 81ee7cb2107149e3bb03020e4159f46a
-  epicDeploymentId: 44b903e68b3d40f3b88fcfc7c22d8eff
+  epicSandboxId: p-urnvv6u25vwhd3ef32l7tj28m2xsc7
+  epicDeploymentId: 8e3878c7879240c1a72935cac194ef8f
   epicClientId: xyza7891pedbfYqiFsM3RazIrhyUadF3
   epicClientSecret: qcOPHjn9HerJYusMj3+fgTJXoKDKKrzas2vgicT7b6k

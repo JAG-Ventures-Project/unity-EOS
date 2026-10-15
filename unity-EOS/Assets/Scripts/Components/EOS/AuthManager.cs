@@ -8,12 +8,15 @@ namespace EOS
 {   
     /// <summary>
     /// Manages Epic Account Services (AuthInterface) authentication.
-    /// Handles AccountPortal in Unity Editor and ExchangeCode in launcher builds.
+    /// Handles PersistentAuth (Remember Me), AccountPortal (interactive login), and ExchangeCode (launcher builds).
     /// based on https://dev.epicgames.com/docs/epic-online-services/accounts-and-social/eos-epic-account-services/auth-interface
+    /// and https://dev.epicgames.com/docs/epic-online-services/accounts-and-social/eos-epic-account-services/auth-interface/auth-guide/log-in-with-the-account-portal
     /// and some extra ideas 
     /// </summary>
     public class AuthManager
     {
+        private const string EpicRememberMeKey = "EOS_RememberEpicAccount";
+
         private readonly PlatformInterface _platformInterface;
         private readonly AuthInterface _authInterface;
         private EpicAccountId _epicId;
@@ -21,8 +24,28 @@ namespace EOS
         public EpicAccountId LocalEpicAccountId => _epicId;
         public bool IsLoggedIn => _epicId != null && _epicId.IsValid();
 
+        /// <summary>
+        /// Gets or sets whether to remember the user's Epic Games login across sessions via Persistent Authorization.
+        /// When set to false, existing persistent credentials are deleted from the local device.
+        /// </summary>
+        public bool IsRememberMe
+        {
+            get => PlayerPrefs.GetInt(EpicRememberMeKey, 0) == 1;
+            set
+            {
+                PlayerPrefs.SetInt(EpicRememberMeKey, value ? 1 : 0);
+                PlayerPrefs.Save();
+
+                if (!value)
+                {
+                    DeletePersistentAuth();
+                }
+            }
+        }
+
         public AuthManager(PlatformInterface platformInterface)
         {
+            // Q: is it ok to keep this or delte it no need for it ? 
             // if (EOSSDKManager.Instance != null)
             // {
             //     _platformInterface = EOSSDKManager.Instance.GetEOSPlatformInterface();
@@ -35,40 +58,52 @@ namespace EOS
         /// <summary>
         /// AI Implementation
         /// Logs in to Epic Account Services.
-        /// - In Unity Editor: Uses AccountPortal for interactive login via browser/overlay.
-        /// - In Build: Checks command-line args for -AUTH_PASSWORD to log in silently via ExchangeCode.
-        ///   Falls back to AccountPortal if launch arguments are missing.
+        /// - If launcher launch arguments (-AUTH_PASSWORD) are present: uses ExchangeCode.
+        /// - Else if IsRememberMe is true: attempts silent login via PersistentAuth.
+        /// - Otherwise: opens AccountPortal for interactive login.
         /// </summary>
-        public void Login(Action<bool, string> onComplete = null)
+        public void Login(bool fallbackToAccountPortal = true, Action<bool, string> onComplete = null)
         {
-            if (_authInterface == null)
-            {
-                string error = "[AuthManager] AuthInterface is null! Ensure PlatformInterface has been initialized.";
-                Debug.LogError(error);
-                onComplete?.Invoke(false, error);
-                return;
-            }
-
-            LoginCredentialType credentialType;
-            string token = null;
-
-#if UNITY_EDITOR
-            credentialType = LoginCredentialType.AccountPortal;
-            Debug.Log("[AuthManager] (Editor) Signing in via AccountPortal...");
-#else
             string exchangeCode = GetCommandLineArg("-AUTH_PASSWORD");
             if (!string.IsNullOrEmpty(exchangeCode))
             {
-                credentialType = LoginCredentialType.ExchangeCode;
-                token = exchangeCode;
                 Debug.Log("[AuthManager] (Build) Detected -AUTH_PASSWORD from Epic Games Launcher. Signing in via ExchangeCode...");
+                PerformLogin(LoginCredentialType.ExchangeCode, exchangeCode, false, onComplete);
+                return;
             }
-            else
+
+            if (IsRememberMe)
             {
-                credentialType = LoginCredentialType.AccountPortal;
-                Debug.LogWarning("[AuthManager] (Build) No -AUTH_PASSWORD argument found. Falling back to AccountPortal...");
+                Debug.Log("[AuthManager] Remember Me is enabled. Attempting silent login via PersistentAuth...");
+                PerformLogin(LoginCredentialType.PersistentAuth, null, fallbackToAccountPortal, onComplete);
+                return;
             }
-#endif
+
+            Debug.Log("[AuthManager] Signing in via AccountPortal...");
+            PerformLogin(LoginCredentialType.AccountPortal, null, false, onComplete);
+        }
+
+        /// <summary>
+        /// Explicitly attempts login using stored PersistentAuth credentials.
+        /// </summary>
+        public void LoginWithPersistentAuth(bool fallbackToAccountPortal = false, Action<bool, string> onComplete = null)
+        {
+            PerformLogin(LoginCredentialType.PersistentAuth, null, fallbackToAccountPortal, onComplete);
+        }
+
+        /// <summary>
+        /// Internal helper that executes AuthInterface.Login and handles retries / fallback.
+        /// </summary>
+        private void PerformLogin(LoginCredentialType credentialType, string token, bool fallbackToAccountPortal, Action<bool, string> onComplete)
+        {
+            // Q: is it ok to keep this or delte it no need for it ?
+            // if (_authInterface == null)
+            // {
+            //     string error = "[AuthManager] AuthInterface is null! Ensure PlatformInterface has been initialized.";
+            //     Debug.LogError(error);
+            //     onComplete?.Invoke(false, error);
+            //     return;
+            // }
 
             var loginOptions = new LoginOptions
             {
@@ -86,15 +121,52 @@ namespace EOS
                 if (loginCallbackInfo.ResultCode == Result.Success)
                 {
                     _epicId = loginCallbackInfo.LocalUserId;
-                    Debug.Log($"<color=green>[AuthManager] Epic Games Account Login Success! EpicAccountId: {_epicId}</color>");
+                    Debug.Log($"<color=green>[AuthManager] {credentialType} Login Success! EpicAccountId: {_epicId}</color>");
                     onComplete?.Invoke(true, null);
+                }
+                else if (!Common.IsOperationComplete(loginCallbackInfo.ResultCode))
+                {
+                    // If the code gets here, the operation is retrying and is not yet complete.
+                    return;
+                }
+                else if (credentialType == LoginCredentialType.PersistentAuth && fallbackToAccountPortal)
+                {
+                    Debug.LogWarning($"[AuthManager] PersistentAuth failed ({loginCallbackInfo.ResultCode}). Falling back to AccountPortal...");
+                    PerformLogin(LoginCredentialType.AccountPortal, null, false, onComplete);
                 }
                 else
                 {
-                    string error = $"[AuthManager] Epic Games Login Failed: {loginCallbackInfo.ResultCode}";
+                    string error = $"[AuthManager] {credentialType} Login Failed: {loginCallbackInfo.ResultCode}";
                     Debug.LogError(error);
                     onComplete?.Invoke(false, error);
                 }
+            });
+        }
+
+        public void DeletePersistentAuth(Action<bool, string> onComplete = null)
+        {
+            // Q: is it ok to keep this or delte it no need for it ? 
+            // if (_authInterface == null)
+            // {
+            //     onComplete?.Invoke(false, "[AuthManager] AuthInterface is null.");
+            //     return;
+            // }
+
+            // even though the documentaion says use "LogoutOptions" we used "DeletePersistentAuthOptions" to Delete the stored token from the OS keychain
+            // https://dev.epicgames.com/docs/api-ref/functions/eos-auth-delete-persistent-auth
+            var deleteOptions = new DeletePersistentAuthOptions();
+            _authInterface.DeletePersistentAuth(deleteOptions, null, (DeletePersistentAuthCallbackInfo callbackInfo) =>
+            {
+                bool success = callbackInfo.ResultCode == Result.Success;
+                if (!success)
+                {
+                    Debug.LogWarning($"[AuthManager] DeletePersistentAuth failed: {callbackInfo.ResultCode}");
+                }
+                else
+                {
+                    Debug.Log("[AuthManager] Persistent Auth credentials successfully deleted.");
+                }
+                onComplete?.Invoke(success, success ? null : callbackInfo.ResultCode.ToString());
             });
         }
 
@@ -123,8 +195,9 @@ namespace EOS
 
         /// <summary>
         /// Signs out of Epic Account Services.
+        /// we'll use " forgetUser = true " when the user clicks logut button (and was signed in with epic) 
         /// </summary>
-        public void Logout(Action<bool, string> onComplete = null)
+        public void Logout(bool forgetUser = false, Action<bool, string> onComplete = null)
         {
             if (_authInterface == null || _epicId == null)
             {
@@ -143,6 +216,12 @@ namespace EOS
                 {
                     Debug.Log("[AuthManager] Epic Games Logout Success.");
                     _epicId = null;
+
+                    if (forgetUser)
+                    {
+                        IsRememberMe = false;
+                    }
+
                     onComplete?.Invoke(true, null);
                 }
                 else
