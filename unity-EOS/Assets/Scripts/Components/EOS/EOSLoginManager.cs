@@ -19,6 +19,8 @@ namespace EOS
         [Header("Navigation")]
         [SerializeField] private string nextSceneName = "GameScene";
 
+        private Callback<GetTicketForWebApiResponse_t> steamTicketCallback;
+
 #if UNITY_EDITOR
         private void OnValidate() {
             Assert.IsNotNull(playerName, "[EOSLoginManager] playerName is null! Please assign an TMP_InputField in the inspector.");
@@ -120,51 +122,80 @@ namespace EOS
             });
         }
 
-        private void SteamLogin() 
+        private void SteamLogin()
         {
-            if(!SteamManager.Initialized)
+            if (!SteamManager.Initialized)
             {
-                Debug.LogError("[EOSLoginManager] Steam is not running! Please make sure Steam is running and try again.");
+                Debug.LogError("Steam is not initialized!");
                 return;
             }
 
             SetButtonsInteractable(false);
-            
-            byte[] ticket = new byte[1024];
-            var identity = new SteamNetworkingIdentity();
-            
-            HAuthTicket authTicket = SteamUser.GetAuthSessionTicket(ticket, ticket.Length, out uint ticketSize, ref identity);
-            if (authTicket == HAuthTicket.Invalid || ticketSize == 0)
+
+            steamTicketCallback ??=
+                Callback<GetTicketForWebApiResponse_t>.Create(OnSteamTicketReceived);
+
+            HAuthTicket ticket =
+                SteamUser.GetAuthTicketForWebApi("epiconlineservices");
+
+            if (ticket == HAuthTicket.Invalid)
             {
-                Debug.LogError("[EOSLoginManager] Failed to get Steam session ticket!");
+                Debug.LogError("Failed to request Steam Web API ticket!");
                 SetButtonsInteractable(true);
                 return;
             }
-            
-            // Save ticket in the persistent manager so it survives scene load
-            EOSSDKManager.SteamAuthTicket = authTicket;
-            
-            string ticketHex = BitConverter.ToString(ticket, 0, (int)ticketSize).Replace("-", "");
-            
-            string steamName = SteamFriends.GetPersonaName();
-            
-            // from https://dev.epicgames.com/docs/api-ref/structs/eos-auth-credentials
-            EOSSDKManager.Instance.ConnectManager.LoginWithSteam(ticketHex, steamName, (success, error) =>
+
+            EOSSDKManager.SteamAuthTicket = ticket;
+        }
+
+        private void OnSteamTicketReceived(GetTicketForWebApiResponse_t result)
+        {
+            if (result.m_eResult != EResult.k_EResultOK)
             {
-                if (success)
+                Debug.LogError($"Steam ticket failed: {result.m_eResult}");
+
+                if (EOSSDKManager.SteamAuthTicket != HAuthTicket.Invalid)
                 {
-                    Debug.Log($"<color=green>[EOSLoginManager] Steam Login Success ({steamName})! Loading {nextSceneName}...</color>");
-                    SceneManager.LoadScene(nextSceneName);
-                }
-                else
-                {
-                    Debug.LogError($"[EOSLoginManager] Steam Login Failed: {error}");
-                    // If login failed, cancel the ticket right away
-                    SteamUser.CancelAuthTicket(authTicket);
+                    SteamUser.CancelAuthTicket(EOSSDKManager.SteamAuthTicket);
                     EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
-                    SetButtonsInteractable(true);
                 }
-            });
+
+                SetButtonsInteractable(true);
+                return;
+            }
+
+            byte[] ticketBytes = result.m_rgubTicket;
+
+            string ticketHex = BitConverter
+                .ToString(ticketBytes, 0, (int)result.m_cubTicket)
+                .Replace("-", "");
+
+            string steamName = SteamFriends.GetPersonaName();
+
+            EOSSDKManager.Instance.ConnectManager.LoginWithSteam(
+                ticketHex,
+                steamName,
+                (success, error) =>
+                {
+                    if (success)
+                    {
+                        Debug.Log("Steam EOS login successful!");
+                        SceneManager.LoadScene(nextSceneName);
+                    }
+                    else
+                    {
+                        Debug.LogError($"EOS Steam Login Failed: {error}");
+
+                        SteamUser.CancelAuthTicket(
+                            EOSSDKManager.SteamAuthTicket
+                        );
+
+                        EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
+
+                        SetButtonsInteractable(true);
+                    }
+                }
+            );
         }
 
         private void SetButtonsInteractable(bool state)
@@ -173,6 +204,5 @@ namespace EOS
             if (epicGamesLoginButton != null) epicGamesLoginButton.interactable = state;
             if (steamLoginButton != null) steamLoginButton.interactable = state;
         }
-
     }
 }
