@@ -30,12 +30,10 @@ namespace EOS
         /// </summary>
         public bool IsRememberMe
         {
-            get => PlayerPrefs.GetInt(EpicRememberMeKey, 0) == 1;
+            get => AuthPreferences.RememberEpicAccount;
             set
             {
-                PlayerPrefs.SetInt(EpicRememberMeKey, value ? 1 : 0);
-                PlayerPrefs.Save();
-
+                AuthPreferences.RememberEpicAccount = value;
                 if (!value)
                 {
                     DeletePersistentAuth();
@@ -214,14 +212,14 @@ namespace EOS
             {
                 if (logoutCallbackInfo.ResultCode == Result.Success)
                 {
-                    Debug.Log("[AuthManager] Epic Games Logout Success.");
+
+                    Debug.Log("[AuthManager] Epic Logout Success");
                     _epicId = null;
 
                     if (forgetUser)
                     {
                         IsRememberMe = false;
                     }
-
                     onComplete?.Invoke(true, null);
                 }
                 else

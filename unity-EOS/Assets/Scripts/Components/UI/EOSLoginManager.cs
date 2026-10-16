@@ -14,8 +14,8 @@ namespace EOS
         [SerializeField] private TMP_InputField playerName;
         [SerializeField] private Button guestLoginButton;
         [SerializeField] private Button epicGamesLoginButton;
-        [SerializeField] private Toggle epicRememberAccountToggle;
         [SerializeField] private Button steamLoginButton;
+        [SerializeField] private Toggle rememberAccountToggle;
 
         [Header("Navigation")]
         [SerializeField] private string nextSceneName = "GameScene";
@@ -27,7 +27,7 @@ namespace EOS
             Assert.IsNotNull(playerName, "[EOSLoginManager] playerName is null! Please assign an TMP_InputField in the inspector.");
             Assert.IsNotNull(guestLoginButton, "[EOSLoginManager] guestLoginButton is null! Please assign an Button in the inspector.");
             Assert.IsNotNull(epicGamesLoginButton, "[EOSLoginManager] epicGamesLoginButton is null! Please assign an Button in the inspector.");
-            Assert.IsNotNull(epicRememberAccountToggle, "[EOSLoginManager] epicRememberAccountToggle is null! Please assign a Toggle in the inspector.");
+            Assert.IsNotNull(rememberAccountToggle, "[EOSLoginManager] rememberAccountToggle is null! Please assign a Toggle in the inspector.");
             Assert.IsNotNull(steamLoginButton, "[EOSLoginManager] steamLoginButton is null! Please assign an Button in the inspector.");
         }
 #endif
@@ -36,11 +36,12 @@ namespace EOS
             Assert.IsNotNull(EOSSDKManager.Instance.ConnectManager, "[EOSLoginManager] ConnectManager is null! Check if EOSSDKManager initialized successfully.");
             Assert.IsNotNull(EOSSDKManager.Instance.AuthManager, "[EOSLoginManager] AuthManager is null! Check if EOSSDKManager initialized successfully.");
             
-            epicRememberAccountToggle.SetIsOnWithoutNotify(EOSSDKManager.Instance.AuthManager.IsRememberMe);
+            playerName.text = AuthPreferences.LastGuestName;
+            rememberAccountToggle.SetIsOnWithoutNotify(AuthPreferences.LastLoginProvider != LoginProvider.None);
 
             guestLoginButton.onClick.AddListener(GuestLogin);
             epicGamesLoginButton.onClick.AddListener(EpicGamesLogin);
-            epicRememberAccountToggle.onValueChanged.AddListener(OnEpicRememberAccountToggleValueChanged);
+            rememberAccountToggle.onValueChanged.AddListener(OnRememberAccountToggleValueChanged);
             steamLoginButton.onClick.AddListener(SteamLogin);
         }
 
@@ -51,13 +52,22 @@ namespace EOS
             {
                 Debug.Log("[EOSLoginManager] Epic Games Launcher exchange code detected. Auto-logging in...");
                 EpicGamesLogin();
+                return;
             }
             // 2. In Unity Editor or standalone build: if player enabled Remember Me, attempt silent auto-login via PersistentAuth
-            else if (EOSSDKManager.Instance.AuthManager.IsRememberMe)
+            // Q: is it better to do this before adding listeners in Awake()? 
+            switch (AuthPreferences.LastLoginProvider)
             {
-                Debug.Log("[EOSLoginManager] Remember Epic Account is enabled. Attempting silent auto-login...");
-                AutoLoginWithPersistentAuth();
+                case LoginProvider.Epic when AuthPreferences.RememberEpicAccount:
+                    Debug.Log("[EOSLoginManager] Auto-logging in via Epic PersistentAuth...");
+                    AutoLoginWithPersistentAuth();
+                    break;
+                case LoginProvider.Steam when SteamManager.Initialized:
+                    Debug.Log("[EOSLoginManager] Auto-logging in via Steam...");
+                    SteamLogin();
+                    break;
             }
+
         }
 
         private void OnEnable() {
@@ -75,17 +85,31 @@ namespace EOS
         private void OnDestroy() {
             guestLoginButton.onClick.RemoveListener(GuestLogin);   
             epicGamesLoginButton.onClick.RemoveListener(EpicGamesLogin);
-            epicRememberAccountToggle.onValueChanged.RemoveListener(OnEpicRememberAccountToggleValueChanged);
+            rememberAccountToggle.onValueChanged.RemoveListener(OnRememberAccountToggleValueChanged);
             steamLoginButton.onClick.RemoveListener(SteamLogin);
         }
 
         private void GuestLogin() 
         {
+            string displayName = string.IsNullOrWhiteSpace(playerName.text) 
+                                ? "Guest" 
+                                : playerName.text.Trim();
+
             SetButtonsInteractable(false);
-            EOSSDKManager.Instance.ConnectManager.LoginAsGuest(playerName.text ?? "Guest", (success, error) =>
+            EOSSDKManager.Instance.ConnectManager.LoginAsGuest(displayName, (success, error) =>
             {
                 if (success)
                 {
+                    if (rememberAccountToggle.isOn)
+                    {
+                        AuthPreferences.LastLoginProvider = LoginProvider.Guest;
+                        AuthPreferences.LastGuestName = playerName.text;
+                    }
+                    else
+                    {
+                        AuthPreferences.LastLoginProvider = LoginProvider.None;
+                    }
+
                     SceneManager.LoadScene(nextSceneName);
                 }
                 else
@@ -118,7 +142,7 @@ namespace EOS
         {
             SetButtonsInteractable(false);
 
-            EOSSDKManager.Instance.AuthManager.IsRememberMe = epicRememberAccountToggle.isOn;
+            EOSSDKManager.Instance.AuthManager.IsRememberMe = rememberAccountToggle.isOn;
 
             EOSSDKManager.Instance.AuthManager.Login(fallbackToAccountPortal: true , (authSuccess, authError) =>
             {
@@ -128,7 +152,10 @@ namespace EOS
                     SetButtonsInteractable(true);
                     return;
                 }
-
+                
+                AuthPreferences.LastLoginProvider = rememberAccountToggle.isOn 
+                                                    ? LoginProvider.Epic 
+                                                    : LoginProvider.None;
                 CompleteEpicConnectLogin();
             });
         }
@@ -157,7 +184,7 @@ namespace EOS
             });
         }
 
-        private void OnEpicRememberAccountToggleValueChanged(bool value) 
+        private void OnRememberAccountToggleValueChanged(bool value) 
         {
             EOSSDKManager.Instance.AuthManager.IsRememberMe = value;
         }
@@ -172,6 +199,7 @@ namespace EOS
 
             SetButtonsInteractable(false);
 
+            // Q: does this need cleaning up in the OnDestroy method?
             steamTicketCallback ??=
                 Callback<GetTicketForWebApiResponse_t>.Create(OnSteamTicketReceived);
 
@@ -219,6 +247,9 @@ namespace EOS
                 {
                     if (success)
                     {
+                        AuthPreferences.LastLoginProvider = rememberAccountToggle.isOn 
+                                                            ? LoginProvider.Steam 
+                                                            : LoginProvider.None;
                         SceneManager.LoadScene(nextSceneName);
                     }
                     else
@@ -242,8 +273,8 @@ namespace EOS
             playerName.interactable = state;
             guestLoginButton.interactable = state;
             epicGamesLoginButton.interactable = state;
-            epicRememberAccountToggle.interactable = state;
             steamLoginButton.interactable = state;
+            rememberAccountToggle.interactable = state;
         }
     }
 }

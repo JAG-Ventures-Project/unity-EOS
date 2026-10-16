@@ -41,7 +41,7 @@ namespace EOS
         } 
         
         // runs once per machine life time
-        private void CreateNewConnectUser(ContinuanceToken continuanceToken, ExternalCredentialType credentialType, string token, string displayName, Action<bool, string> onComplete)
+        private void CreateNewConnectUser(ContinuanceToken continuanceToken, Action<bool, string> onComplete)
         {
             var createUserOptions = new CreateUserOptions
             {
@@ -53,9 +53,7 @@ namespace EOS
                 {
                     LocalProductUserId = createCb.LocalUserId;
                     Debug.Log($"[ConnectManager] Created new EOS user! PUID: {LocalProductUserId}");
-                    
-                    // Re-authenticate to complete the session
-                    PerformConnectLogin(credentialType, token, displayName, onComplete);
+                    onComplete?.Invoke(true, null);
                 }
                 else
                 {
@@ -112,7 +110,7 @@ namespace EOS
                 else if (loginCb.ResultCode == Result.InvalidUser)
                 {
                     Debug.Log($"[ConnectManager] First time login with {credentialType}: Creating new user with ContinuanceToken...");
-                    CreateNewConnectUser(loginCb.ContinuanceToken, credentialType, token, displayName, onComplete);
+                    CreateNewConnectUser(loginCb.ContinuanceToken, onComplete);
                 }
                 // other error (e.g. Network Disconnected)
                 else
@@ -120,6 +118,11 @@ namespace EOS
                     onComplete?.Invoke(false, $"Connect Login failed: {loginCb.ResultCode}");
                 }
             });
+        }
+        public void ResetSession()
+        {
+            LocalProductUserId = null;
+            Debug.Log("[ConnectManager] Connect session reset.");
         }
     }
 }
