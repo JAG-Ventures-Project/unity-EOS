@@ -115,6 +115,7 @@ namespace EOS
                 else
                 {
                     Debug.LogError($"[EOSLoginManager] Guest Login Failed: {error}");
+                    NotificationManager.Instance?.ShowNotification($"Guest Login Failed: {error}", NotificationType.Error);
                     SetButtonsInteractable(true);
                 }
             });
@@ -149,6 +150,7 @@ namespace EOS
                 if (!authSuccess)
                 {
                     Debug.LogError($"[EOSLoginManager] Epic Games Auth Login Failed: {authError}");
+                    NotificationManager.Instance?.ShowNotification($"Epic Games Auth Login Failed: {authError}", NotificationType.Error);
                     SetButtonsInteractable(true);
                     return;
                 }
@@ -166,6 +168,7 @@ namespace EOS
             if (string.IsNullOrEmpty(userAuthToken))
             {
                 Debug.LogError("[EOSLoginManager] Failed to copy Epic user auth token!");
+                NotificationManager.Instance?.ShowNotification("Failed to copy Epic user auth token.", NotificationType.Error);
                 SetButtonsInteractable(true);
                 return;
             }
@@ -179,6 +182,7 @@ namespace EOS
                 else
                 {
                     Debug.LogError($"[EOSLoginManager] Epic Games Connect Login Failed: {connectError}");
+                    NotificationManager.Instance?.ShowNotification($"Epic Games Connect Login Failed: {connectError}", NotificationType.Error);
                     SetButtonsInteractable(true);
                 }
             });
@@ -194,6 +198,7 @@ namespace EOS
             if (!SteamManager.Initialized)
             {
                 Debug.LogError("Steam is not initialized!");
+                NotificationManager.Instance?.ShowNotification("Steam is not open or initialized. Please make sure Steam is running.", NotificationType.Warning);
                 return;
             }
 
@@ -209,6 +214,7 @@ namespace EOS
             if (ticket == HAuthTicket.Invalid)
             {
                 Debug.LogError("Failed to request Steam Web API ticket!");
+                NotificationManager.Instance?.ShowNotification("Failed to request Steam Web API ticket.", NotificationType.Error);
                 SetButtonsInteractable(true);
                 return;
             }
@@ -221,6 +227,7 @@ namespace EOS
             if (result.m_eResult != EResult.k_EResultOK)
             {
                 Debug.LogError($"Steam ticket failed: {result.m_eResult}");
+                NotificationManager.Instance?.ShowNotification($"Steam ticket failed: {result.m_eResult}", NotificationType.Error);
 
                 if (EOSSDKManager.SteamAuthTicket != HAuthTicket.Invalid)
                 {
@@ -255,6 +262,7 @@ namespace EOS
                     else
                     {
                         Debug.LogError($"EOS Steam Login Failed: {error}");
+                        NotificationManager.Instance?.ShowNotification($"Steam Login Failed: {error}", NotificationType.Error);
 
                         SteamUser.CancelAuthTicket(
                             EOSSDKManager.SteamAuthTicket

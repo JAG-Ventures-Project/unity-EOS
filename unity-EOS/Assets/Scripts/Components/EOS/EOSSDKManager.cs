@@ -14,6 +14,7 @@ namespace EOS
     /// with AI Implementaion and fixes on top of it
     /// </summary>
     [RequireComponent(typeof(SteamManager))]
+    // Q: is there a good way to require the notification manager here, and is ggod to keep it with the EOSSDKManager Component. or is it gool like it is now.
     public class EOSSDKManager : MonoBehaviour, I_EOSSDKManager
     {
         [SerializeField] private EosApiKey eosApiKey;
@@ -34,6 +35,11 @@ namespace EOS
 
         // we have to load the C libs manually in the editor because unity can't compile them in the run time . but they are ok in the build
     #if UNITY_EDITOR
+        private void OnValidate()
+        {
+            Assert.IsNotNull(eosApiKey, "[EOSSDKManager] EosApiKey is null! Please assign an EosApiKey ScriptableObject in the inspector.");
+        }
+        
         // AI Implementation 
         [DllImport("Kernel32.dll")]
         private static extern IntPtr LoadLibrary(string lpLibFileName);
@@ -80,8 +86,6 @@ namespace EOS
                 Destroy(transform.root.gameObject);
                 return;
             }
-
-            Assert.IsNotNull(eosApiKey, "[EOSSDKManager] EosApiKey is null! Please assign an EosApiKey ScriptableObject in the inspector.");
 
     #if UNITY_EDITOR
             LoadEditorLibrary();
