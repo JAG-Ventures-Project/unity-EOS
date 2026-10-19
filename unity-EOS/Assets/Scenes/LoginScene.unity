@@ -368,6 +368,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 406344111}
+  - component: {fileID: 406344112}
   m_Layer: 0
   m_Name: NotificationManager
   m_TagString: Untagged
@@ -390,6 +391,19 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1554580041}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &406344112
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 406344110}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71b697aaa4e76ca4dbac05ca6e741182, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EOS.NotificationManager
+  notificationPanelPrefab: {fileID: 8592876063766510713, guid: d87e3e2acbb33aa4aa3b75c88800d292, type: 3}
 --- !u!1 &718401187
 GameObject:
   m_ObjectHideFlags: 0
@@ -529,7 +543,6 @@ GameObject:
   - component: {fileID: 1532215046}
   - component: {fileID: 1532215047}
   - component: {fileID: 1532215048}
-  - component: {fileID: 1532215049}
   m_Layer: 0
   m_Name: EOSManager
   m_TagString: Untagged
@@ -577,19 +590,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2fe77eafe7906b42aa59e796cd4ecd6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SteamManager
---- !u!114 &1532215049
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1532215045}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 71b697aaa4e76ca4dbac05ca6e741182, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::EOS.NotificationManager
-  notificationPanelPrefab: {fileID: 8592876063766510712, guid: d87e3e2acbb33aa4aa3b75c88800d292, type: 3}
 --- !u!1 &1554580040
 GameObject:
   m_ObjectHideFlags: 0
@@ -746,6 +746,10 @@ PrefabInstance:
     - target: {fileID: 4029638124868918212, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
       propertyPath: m_Name
       value: Login Menu
+      objectReference: {fileID: 0}
+    - target: {fileID: 5533216340149664855, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+      propertyPath: nextSceneName
+      value: Lobby
       objectReference: {fileID: 0}
     - target: {fileID: 8530643539590587193, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
       propertyPath: m_Pivot.x

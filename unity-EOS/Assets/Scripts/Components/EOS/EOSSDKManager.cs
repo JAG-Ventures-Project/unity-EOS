@@ -15,7 +15,7 @@ namespace EOS
     /// </summary>
     [RequireComponent(typeof(SteamManager))]
     // Q: is there a good way to require the notification manager here, and is ggod to keep it with the EOSSDKManager Component. or is it gool like it is now.
-    public class EOSSDKManager : MonoBehaviour, I_EOSSDKManager
+    public class EOSSDKManager : MonoBehaviour, IEOSSDKManager
     {
         [SerializeField] private EosApiKey eosApiKey;
 
@@ -34,7 +34,7 @@ namespace EOS
         
 
         // we have to load the C libs manually in the editor because unity can't compile them in the run time . but they are ok in the build
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
         private void OnValidate()
         {
             Assert.IsNotNull(eosApiKey, "[EOSSDKManager] EosApiKey is null! Please assign an EosApiKey ScriptableObject in the inspector.");
@@ -72,7 +72,7 @@ namespace EOS
 
             Bindings.Hook(s_libraryPointer, GetProcAddress);
         }
-    #endif
+#endif
 
         private void Awake()
         {
@@ -87,9 +87,9 @@ namespace EOS
                 return;
             }
 
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
             LoadEditorLibrary();
-    #endif
+#endif
 
             var initResult = InitializePlatformInterface();
             var isAlreadyConfigured = Application.isEditor && initResult == Result.AlreadyConfigured;
@@ -111,6 +111,11 @@ namespace EOS
         public PlatformInterface GetEOSPlatformInterface()
         {
             return s_eosPlatformInterface;
+        }
+
+        public ProductUserId GetLocalProductUserId()
+        {
+            return _connectManager?.LocalProductUserId;
         }
 
         public Result InitializePlatformInterface()
@@ -154,11 +159,11 @@ namespace EOS
                     ClientSecret = eosApiKey.epicClientSecret
                 },
                 Flags =
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
                     PlatformFlags.LoadingInEditor
-    #else
+#else
                     PlatformFlags.None
-    #endif
+#endif
             };
 
             return PlatformInterface.Create(platformOptions);
@@ -180,7 +185,7 @@ namespace EOS
 
                 var result = PlatformInterface.Shutdown();
 
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
                 // AI Implementation - for freeing the C libs
                 if (s_libraryPointer != IntPtr.Zero)
                 {
@@ -188,7 +193,7 @@ namespace EOS
                     while (FreeLibrary(s_libraryPointer) != 0) { }
                     s_libraryPointer = IntPtr.Zero;
                 }
-    #endif
+#endif
 
                 return result == Result.Success;
             }

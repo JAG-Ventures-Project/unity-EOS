@@ -4,15 +4,9 @@ using UnityEngine.SceneManagement;
 
 namespace EOS
 {
-    public enum NotificationType
-    {
-        Normal,
-        Warning,
-        Error
-    }
 
     [DisallowMultipleComponent]
-    public class NotificationManager : MonoBehaviour
+    public class NotificationManager : MonoBehaviour, INotification
     {
         [SerializeField] private Notification notificationPanelPrefab;
 
