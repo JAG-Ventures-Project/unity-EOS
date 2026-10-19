@@ -81,7 +81,6 @@ namespace EOS
             _lobby.Dispose();
         }
         
-        // --- Button Click Callbacks ---
         private void OnCreateLobbyButtonClicked()
         {
             SetMenuButtonsInteractable(false);
@@ -100,10 +99,10 @@ namespace EOS
             _lobby.JoinLobbyByCode(code);
         }
         
+        // AI Implementation
         private void OnCopyCodeButtonClicked()
         {
             if (string.IsNullOrEmpty(_lobby.CurrentJoinCode)) return;
-            // Copy room code to player's system clipboard
             GUIUtility.systemCopyBuffer = _lobby.CurrentJoinCode;
             NotificationManager.Instance?.ShowNotification($"Code copied: {_lobby.CurrentJoinCode}", NotificationType.Normal);
         }
@@ -116,36 +115,28 @@ namespace EOS
         
         private void OnStartGameButtonClicked()
         {
-            // Host clicked Start Game: Trigger scene transition or server gameplay start
             NotificationManager.Instance?.ShowNotification("Starting match...", NotificationType.Normal);
         }
         
-        // --- ILobby Event Handlers ---
         private void HandleOnLobbyCreated(string shortCode)
         {
             _currentMemberCount = 1;
             roomCodeText.text = shortCode;
             UpdateMemberCountDisplay();
-            if (startGameButton != null)
-            {
-                startGameButton.gameObject.SetActive(true);
-            }
             SetPanelState(isInLobby: true);
-            // Transport Host Startup:
+            // transport Host Startup:
             // EOSNetworkManagerBridge.Instance.StartEosHost();
         }
         
         private void HandleOnLobbyJoined(string hostAddress)
         {
-            _currentMemberCount = 2; // Incremented as members are received
+            _currentMemberCount = 2;
             roomCodeText.text = _lobby.CurrentJoinCode;
             UpdateMemberCountDisplay();
-            if (startGameButton != null)
-            {
-                startGameButton.gameObject.SetActive(false); // Non-hosts cannot start match
-            }
+            startGameButton.gameObject.SetActive(false);
+            startGameButton.interactable = false;
             SetPanelState(isInLobby: true);
-            // Transport Client Startup using Host's ProductUserId:
+            // transport Client Startup using Host's ProductUserId:
             // EOSNetworkManagerBridge.Instance.StartEosClient(hostAddress);
         }
         
@@ -155,7 +146,7 @@ namespace EOS
             SetMenuButtonsInteractable(true);
             leaveLobbyButton.interactable = true;
             joinCodeInputField.text = string.Empty;
-            // Transport Teardown:
+            // transport Teardown:
             // EOSNetworkManagerBridge.Instance.StopNetwork();
         }
         
@@ -181,7 +172,6 @@ namespace EOS
             NotificationManager.Instance?.ShowNotification(errorMessage, NotificationType.Error);
         }
         
-        // --- Helper Methods ---
         private void SetPanelState(bool isInLobby)
         {
             menuPanel.SetActive(!isInLobby);
@@ -199,7 +189,7 @@ namespace EOS
         {
             if (memberCountText != null)
             {
-                memberCountText.text = $"Players: {_currentMemberCount} / {maxLobbyMembers}";
+                memberCountText.text = $"{_currentMemberCount} / {maxLobbyMembers}";
             }
         }
 
