@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
 using Steamworks;
+using EOS;
 
 namespace EOS
 {

@@ -38,13 +38,13 @@ namespace EOS
         public LobbyManager() {
             Assert.IsNotNull(EOSSDKManager.Instance, "[LobbyManager] EOSSDKManager.Instance is null!");
             
-            _platformHandle = EOSSDKManager.Instance.GetEOSPlatformInterface();
+            _platformHandle = EOSSDKManager.Instance.Service.PlatformInterface;
             Assert.IsNotNull(_platformHandle, "[LobbyManager] PlatformInterface must not be null.");
             
             _lobbyHandle = _platformHandle.GetLobbyInterface();
             Assert.IsNotNull(_lobbyHandle, "[LobbyManager] LobbyInterface failed to initialize.");
             
-            _localProductUserId = EOSSDKManager.Instance.GetLocalProductUserId();
+            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
             Assert.IsNotNull(_localProductUserId, "[LobbyManager] LocalProductUserId is null! Ensure player is logged in via ConnectManager before creating/joining lobbies.");
             
             SubscribeToMemberStatusNotifications();
