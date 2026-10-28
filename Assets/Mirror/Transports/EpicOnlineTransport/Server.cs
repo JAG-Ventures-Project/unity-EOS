@@ -112,11 +112,18 @@ namespace EpicTransport {
                         return;
                     }
 
+                    // Clean up stale connection if client reconnected without sending clean DISCONNECT (e.g. crash / Alt+F4)
+                    if (epicToMirrorIds.TryGetValue(clientUserId, out int oldConnId)) {
+                        OnDisconnected.Invoke(oldConnId);
+                        epicToMirrorIds.Remove(clientUserId);
+                        epicToSocketIds.Remove(clientUserId);
+                    }
+
                     SendInternal(clientUserId, socketId, InternalMessages.ACCEPT_CONNECT);
 
                     int connectionId = nextConnectionID++;
                     epicToMirrorIds.Add(clientUserId, connectionId);
-                    epicToSocketIds.Add(clientUserId, socketId);
+                    epicToSocketIds[clientUserId] = socketId;
                     OnConnected.Invoke(connectionId);
 
                     string clientUserIdString;

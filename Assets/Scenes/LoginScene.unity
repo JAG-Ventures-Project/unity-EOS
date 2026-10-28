@@ -119,6 +119,57 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &42831502
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 42831503}
+  - component: {fileID: 42831504}
+  m_Layer: 0
+  m_Name: LoginManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &42831503
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 42831502}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1554580041}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &42831504
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 42831502}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 359d5134e47f0a640a737e5992593735, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EOS.EOSLoginManager
+  playerName: {fileID: 5674211530461555689}
+  guestLoginButton: {fileID: 5674211530461555688}
+  epicGamesLoginButton: {fileID: 5674211530461555687}
+  steamLoginButton: {fileID: 5674211530461555686}
+  rememberAccountToggle: {fileID: 5674211530461555685}
+  nextSceneName: Lobby
+  nextScene: {fileID: 102900000, guid: a153af187e3022d40b83dd4ca0d2844a, type: 3}
 --- !u!1 &258532670
 GameObject:
   m_ObjectHideFlags: 0
@@ -621,6 +672,7 @@ Transform:
   m_Children:
   - {fileID: 1532215046}
   - {fileID: 406344111}
+  - {fileID: 42831503}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1558464159
@@ -748,6 +800,10 @@ PrefabInstance:
       value: Login Menu
       objectReference: {fileID: 0}
     - target: {fileID: 5533216340149664855, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+      propertyPath: nextScene
+      value: 
+      objectReference: {fileID: 102900000, guid: a153af187e3022d40b83dd4ca0d2844a, type: 3}
+    - target: {fileID: 5533216340149664855, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
       propertyPath: nextSceneName
       value: Lobby
       objectReference: {fileID: 0}
@@ -831,11 +887,67 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5533216340149664855, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+--- !u!114 &5674211530461555685 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1869991832111027159, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+  m_PrefabInstance: {fileID: 5674211530461555684}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9085046f02f69544eb97fd06b6048fe2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Toggle
+--- !u!114 &5674211530461555686 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3720176472070938917, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+  m_PrefabInstance: {fileID: 5674211530461555684}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
+--- !u!114 &5674211530461555687 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1421229450705308933, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+  m_PrefabInstance: {fileID: 5674211530461555684}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
+--- !u!114 &5674211530461555688 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 9179551859119214044, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+  m_PrefabInstance: {fileID: 5674211530461555684}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
+--- !u!114 &5674211530461555689 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4529721840504024704, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+  m_PrefabInstance: {fileID: 5674211530461555684}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2da0c512f12947e489f739169773d7ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TMP_InputField
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

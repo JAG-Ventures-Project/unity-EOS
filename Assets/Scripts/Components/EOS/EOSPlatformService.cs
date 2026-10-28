@@ -1,10 +1,12 @@
 using System;
 using System.Runtime.InteropServices;
 using Epic.OnlineServices;
+using Epic.OnlineServices.Logging;
 using Epic.OnlineServices.Platform;
 using UnityEngine;
 using UnityEngine.Assertions;
 using Steamworks;
+using Unity.Profiling;
 
 namespace EOS
 {
@@ -20,10 +22,14 @@ namespace EOS
         public PlatformInterface PlatformInterface => _platformInterface;
         public ConnectManager ConnectManager { get; private set; }
         public AuthManager AuthManager { get; private set; }
+        public LobbyManager Lobby { get; private set; }
+        public PlayerDataStorageManager PlayerDataStorage { get; private set; }
         public bool IsInitialized => _platformInterface != null;
 
+        private static readonly ProfilerMarker s_EosTickMarker = new ProfilerMarker("EOS.PlatformTick");
+
 #if UNITY_EDITOR
-        // AI Implemtaion 
+        // AI Implementation
         [DllImport("Kernel32.dll")]
         private static extern IntPtr LoadLibrary(string lpLibFileName);
 
@@ -85,6 +91,10 @@ namespace EOS
 
             ConnectManager = new ConnectManager(_platformInterface);
             AuthManager = new AuthManager(_platformInterface);
+            Lobby = new LobbyManager(_platformInterface);
+            PlayerDataStorage = new PlayerDataStorageManager(_platformInterface);
+
+            EpicTransport.EOSSDKComponent.SetExternalPlatform(_platformInterface, null, () => IsInitialized && ConnectManager?.LocalProductUserId != null);
         }
 
         public Result InitializePlatform(EosApiKey apiKey)
@@ -96,14 +106,7 @@ namespace EOS
                 AllocateMemoryFunction = IntPtr.Zero,
                 ReallocateMemoryFunction = IntPtr.Zero,
                 ReleaseMemoryFunction = IntPtr.Zero,
-                OverrideThreadAffinity = new InitializeThreadAffinity
-                {
-                    NetworkWork = 0,
-                    StorageIo = 0,
-                    WebSocketIo = 0,
-                    P2PIo = 0,
-                    HttpRequestIo = 0
-                }
+                OverrideThreadAffinity = null
             };
 
             return PlatformInterface.Initialize(initOptions);
@@ -111,14 +114,21 @@ namespace EOS
 
         public PlatformInterface CreatePlatform(EosApiKey apiKey)
         {
+            // EOS requires a 64-character hexadecimal (256-bit) encryption key to initialize PlayerDataStorageInterface
+            Assert.IsTrue(!string.IsNullOrEmpty(apiKey.encryptionKey) && apiKey.encryptionKey.Length == 64,
+                "[EOSPlatformService] EosApiKey.encryptionKey must be a 64-character hexadecimal string! Right-click EosApiKey in the Inspector to generate one.");
+
+            string encryptionKey = apiKey.encryptionKey;
+
             var platformOptions = new WindowsOptions
             {
                 CacheDirectory = Application.temporaryCachePath,
+                EncryptionKey = encryptionKey,
                 IsServer = false,
                 ProductId = apiKey.epicProductId,
                 SandboxId = apiKey.epicSandboxId,
                 DeploymentId = apiKey.epicDeploymentId,
-                TickBudgetInMilliseconds = 16,
+                TickBudgetInMilliseconds = 0, // 0 = process all available work without artificial time limits
                 ClientCredentials = new ClientCredentials
                 {
                     ClientId = apiKey.epicClientId,
@@ -137,7 +147,10 @@ namespace EOS
 
         public void Tick()
         {
-            _platformInterface.Tick();
+            using(s_EosTickMarker.Auto())
+            {
+                _platformInterface.Tick();
+            }
         }
 
         public ProductUserId GetLocalProductUserId()
@@ -156,8 +169,11 @@ namespace EOS
                     EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
                 }
 
+                Lobby?.Dispose();
+
                 if (_platformInterface != null)
                 {
+                    EpicTransport.EOSSDKComponent.SetExternalPlatform(null, null, null);
                     _platformInterface.Release();
                     _platformInterface = null;
                 }

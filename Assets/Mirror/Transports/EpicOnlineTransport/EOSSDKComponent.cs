@@ -33,10 +33,10 @@ namespace EpicTransport {
         [SerializeField] private string displayName = "User";
         public static string DisplayName {
             get {
-                return Instance.displayName;
+                return (instance != null && !string.IsNullOrEmpty(instance.displayName)) ? instance.displayName : "Player";
             }
             set {
-                Instance.displayName = value;
+                if (instance != null) instance.displayName = value;
             }
         }
 
@@ -46,7 +46,7 @@ namespace EpicTransport {
         [SerializeField] private bool collectPlayerMetrics = true;
         public static bool CollectPlayerMetrics {
             get {
-                return Instance.collectPlayerMetrics;
+                return instance != null ? instance.collectPlayerMetrics : false;
             }
         }
 
@@ -70,24 +70,44 @@ namespace EpicTransport {
 
         private PlatformInterface EOS;
 
+        private static PlatformInterface s_externalPlatform;
+        private static ProductUserId s_externalLocalProductUserId;
+        private static Func<bool> s_externalInitializedCheck;
+
+        public static void SetExternalPlatform(PlatformInterface platform, ProductUserId localUserId, Func<bool> isInitializedCheck = null)
+        {
+            s_externalPlatform = platform;
+            s_externalLocalProductUserId = localUserId;
+            s_externalInitializedCheck = isInitializedCheck;
+        }
+
+        public static void SetExternalLocalProductUserId(ProductUserId localUserId)
+        {
+            s_externalLocalProductUserId = localUserId;
+        }
+
+        private static PlatformInterface ActivePlatform => (instance != null && instance.EOS != null)
+            ? instance.EOS
+            : s_externalPlatform;
+
         // Interfaces with safe null checking
-        public static Epic.OnlineServices.Achievements.AchievementsInterface GetAchievementsInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetAchievementsInterface() : null;
-        public static Epic.OnlineServices.Auth.AuthInterface GetAuthInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetAuthInterface() : null;
-        public static Epic.OnlineServices.Connect.ConnectInterface GetConnectInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetConnectInterface() : null;
-        public static Epic.OnlineServices.Ecom.EcomInterface GetEcomInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetEcomInterface() : null;
-        public static Epic.OnlineServices.Friends.FriendsInterface GetFriendsInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetFriendsInterface() : null;
-        public static Epic.OnlineServices.Leaderboards.LeaderboardsInterface GetLeaderboardsInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetLeaderboardsInterface() : null;
-        public static Epic.OnlineServices.Lobby.LobbyInterface GetLobbyInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetLobbyInterface() : null;
-        public static Epic.OnlineServices.Metrics.MetricsInterface GetMetricsInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetMetricsInterface() : null;
-        public static Epic.OnlineServices.Mods.ModsInterface GetModsInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetModsInterface() : null;
-        public static Epic.OnlineServices.P2P.P2PInterface GetP2PInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetP2PInterface() : null;
-        public static Epic.OnlineServices.PlayerDataStorage.PlayerDataStorageInterface GetPlayerDataStorageInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetPlayerDataStorageInterface() : null;
-        public static Epic.OnlineServices.Presence.PresenceInterface GetPresenceInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetPresenceInterface() : null;
-        public static Epic.OnlineServices.Sessions.SessionsInterface GetSessionsInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetSessionsInterface() : null;
-        public static Epic.OnlineServices.Stats.StatsInterface GetStatsInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetStatsInterface() : null;
-        public static Epic.OnlineServices.TitleStorage.TitleStorageInterface GetTitleStorageInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetTitleStorageInterface() : null;
-        public static Epic.OnlineServices.UI.UIInterface GetUIInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetUIInterface() : null;
-        public static Epic.OnlineServices.UserInfo.UserInfoInterface GetUserInfoInterface() => (instance != null && instance.EOS != null) ? instance.EOS.GetUserInfoInterface() : null;
+        public static Epic.OnlineServices.Achievements.AchievementsInterface GetAchievementsInterface() => ActivePlatform?.GetAchievementsInterface();
+        public static Epic.OnlineServices.Auth.AuthInterface GetAuthInterface() => ActivePlatform?.GetAuthInterface();
+        public static Epic.OnlineServices.Connect.ConnectInterface GetConnectInterface() => ActivePlatform?.GetConnectInterface();
+        public static Epic.OnlineServices.Ecom.EcomInterface GetEcomInterface() => ActivePlatform?.GetEcomInterface();
+        public static Epic.OnlineServices.Friends.FriendsInterface GetFriendsInterface() => ActivePlatform?.GetFriendsInterface();
+        public static Epic.OnlineServices.Leaderboards.LeaderboardsInterface GetLeaderboardsInterface() => ActivePlatform?.GetLeaderboardsInterface();
+        public static Epic.OnlineServices.Lobby.LobbyInterface GetLobbyInterface() => ActivePlatform?.GetLobbyInterface();
+        public static Epic.OnlineServices.Metrics.MetricsInterface GetMetricsInterface() => ActivePlatform?.GetMetricsInterface();
+        public static Epic.OnlineServices.Mods.ModsInterface GetModsInterface() => ActivePlatform?.GetModsInterface();
+        public static Epic.OnlineServices.P2P.P2PInterface GetP2PInterface() => ActivePlatform?.GetP2PInterface();
+        public static Epic.OnlineServices.PlayerDataStorage.PlayerDataStorageInterface GetPlayerDataStorageInterface() => ActivePlatform?.GetPlayerDataStorageInterface();
+        public static Epic.OnlineServices.Presence.PresenceInterface GetPresenceInterface() => ActivePlatform?.GetPresenceInterface();
+        public static Epic.OnlineServices.Sessions.SessionsInterface GetSessionsInterface() => ActivePlatform?.GetSessionsInterface();
+        public static Epic.OnlineServices.Stats.StatsInterface GetStatsInterface() => ActivePlatform?.GetStatsInterface();
+        public static Epic.OnlineServices.TitleStorage.TitleStorageInterface GetTitleStorageInterface() => ActivePlatform?.GetTitleStorageInterface();
+        public static Epic.OnlineServices.UI.UIInterface GetUIInterface() => ActivePlatform?.GetUIInterface();
+        public static Epic.OnlineServices.UserInfo.UserInfoInterface GetUserInfoInterface() => ActivePlatform?.GetUserInfoInterface();
 
 
         protected EpicAccountId localUserAccountId;
@@ -97,13 +117,18 @@ namespace EpicTransport {
         public static string LocalUserAccountIdString => instance != null ? instance.localUserAccountIdString : string.Empty;
 
         protected ProductUserId localUserProductId;
-        public static ProductUserId LocalUserProductId => instance != null ? instance.localUserProductId : null;
+        public static ProductUserId LocalUserProductId => (instance != null && instance.localUserProductId != null)
+            ? instance.localUserProductId
+            : s_externalLocalProductUserId;
 
         protected string localUserProductIdString;
-        public static string LocalUserProductIdString => instance != null ? instance.localUserProductIdString : string.Empty;
+        public static string LocalUserProductIdString => (instance != null && !string.IsNullOrEmpty(instance.localUserProductIdString))
+            ? instance.localUserProductIdString
+            : (LocalUserProductId?.ToString() ?? string.Empty);
 
         protected bool initialized;
-        public static bool Initialized => instance != null && instance.initialized;
+        public static bool Initialized => (instance != null && instance.initialized) ||
+            (s_externalInitializedCheck != null ? s_externalInitializedCheck() : (s_externalPlatform != null && s_externalLocalProductUserId != null));
 
         protected bool isConnecting;
         public static bool IsConnecting => instance != null && instance.isConnecting;
@@ -112,10 +137,9 @@ namespace EpicTransport {
         protected static EOSSDKComponent Instance {
             get {
                 if (instance == null) {
-                    return new GameObject("EOSSDKComponent").AddComponent<EOSSDKComponent>();
-                } else {
-                    return instance;
+                    instance = FindFirstObjectByType<EOSSDKComponent>();
                 }
+                return instance;
             }
         }
 
@@ -224,6 +248,11 @@ namespace EpicTransport {
         }
 
         protected void InitializeImplementation() {
+            if (apiKeys == null) {
+                isConnecting = false;
+                return;
+            }
+
             isConnecting = true;
 
             var initializeOptions = new InitializeOptions() {

@@ -14,10 +14,13 @@ namespace EOS
         [SerializeField] private Button logoutButton;
 
         [Header("Navigation")]
-        [SerializeField] private string nextSceneName = "LoginScene";
+        [SerializeField, HideInInspector] private string nextSceneName = "LoginScene";
 
 #if UNITY_EDITOR
+        [SerializeField] private UnityEditor.SceneAsset nextScene;
+        
         private void OnValidate() {
+            nextSceneName = (nextScene != null) ? nextScene.name : "LoginScene";
             Assert.IsNotNull(logoutButton, "[LogoutManager] logoutButton is null! Please assign a Button in the inspector.");
         }
 #endif

@@ -231,6 +231,35 @@ namespace EOS
             });
         }
 
+        public void GetDisplayName(Action<string> onComplete)
+        {
+            var userInfoInterface = _platformInterface.GetUserInfoInterface();
+            var queryOptions = new Epic.OnlineServices.UserInfo.QueryUserInfoOptions
+            {
+                LocalUserId = _epicId,
+                TargetUserId = _epicId
+            };
+
+            userInfoInterface.QueryUserInfo(queryOptions, null, (queryCb) =>
+            {
+                if (queryCb.ResultCode == Result.Success)
+                {
+                    var copyOptions = new Epic.OnlineServices.UserInfo.CopyUserInfoOptions
+                    {
+                        LocalUserId = _epicId,
+                        TargetUserId = _epicId
+                    };
+
+                    if (userInfoInterface.CopyUserInfo(copyOptions, out Epic.OnlineServices.UserInfo.UserInfoData data) == Result.Success)
+                    {
+                        onComplete?.Invoke(data.DisplayName);
+                        return;
+                    }
+                }
+                onComplete?.Invoke("EpicPlayer");
+            });
+        }
+
         /// <summary>
         /// Retrieves the value of a command-line argument passed to the game.
         /// Supports both -key=value and -key value formats.

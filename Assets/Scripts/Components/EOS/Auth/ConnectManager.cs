@@ -52,6 +52,7 @@ namespace EOS
                 if (createCb.ResultCode == Result.Success)
                 {
                     LocalProductUserId = createCb.LocalUserId;
+                    EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
                     Debug.Log($"[ConnectManager] Created new EOS user! PUID: {LocalProductUserId}");
                     onComplete?.Invoke(true, null);
                 }
@@ -103,6 +104,7 @@ namespace EOS
                 if (loginCb.ResultCode == Result.Success)
                 {
                     LocalProductUserId = loginCb.LocalUserId;
+                    EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
                     Debug.Log($"[ConnectManager] {credentialType} login success! PUID: {LocalProductUserId}");
                     onComplete?.Invoke(true, null);
                 }
@@ -122,6 +124,7 @@ namespace EOS
         public void ResetSession()
         {
             LocalProductUserId = null;
+            EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(null);
             Debug.Log("[ConnectManager] Connect session reset.");
         }
     }

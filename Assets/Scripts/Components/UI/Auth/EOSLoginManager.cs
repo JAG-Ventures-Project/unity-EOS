@@ -5,7 +5,6 @@ using UnityEngine.UI;
 using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
 using Steamworks;
-using EOS;
 
 namespace EOS
 {
@@ -19,12 +18,15 @@ namespace EOS
         [SerializeField] private Toggle rememberAccountToggle;
 
         [Header("Navigation")]
-        [SerializeField] private string nextSceneName = "GameScene";
+        [SerializeField, HideInInspector] private string nextSceneName = "GameScene";
 
         private Callback<GetTicketForWebApiResponse_t> steamTicketCallback;
 
 #if UNITY_EDITOR
+        [SerializeField] private UnityEditor.SceneAsset nextScene;
+
         private void OnValidate() {
+            nextSceneName = (nextScene != null) ? nextScene.name : "GameScene";
             Assert.IsNotNull(playerName, "[EOSLoginManager] playerName is null! Please assign an TMP_InputField in the inspector.");
             Assert.IsNotNull(guestLoginButton, "[EOSLoginManager] guestLoginButton is null! Please assign an Button in the inspector.");
             Assert.IsNotNull(epicGamesLoginButton, "[EOSLoginManager] epicGamesLoginButton is null! Please assign an Button in the inspector.");
@@ -101,6 +103,7 @@ namespace EOS
             {
                 if (success)
                 {
+                    EOSSDKManager.LocalDisplayName = displayName;
                     if (rememberAccountToggle.isOn)
                     {
                         AuthPreferences.LastLoginProvider = LoginProvider.Guest;
@@ -178,7 +181,11 @@ namespace EOS
             {
                 if (connectSuccess)
                 {
-                    SceneManager.LoadScene(nextSceneName);
+                    EOSSDKManager.Instance.AuthManager.GetDisplayName((epicDisplayName) =>
+                    {
+                        EOSSDKManager.LocalDisplayName = epicDisplayName;
+                        SceneManager.LoadScene(nextSceneName);
+                    });
                 }
                 else
                 {
@@ -255,6 +262,7 @@ namespace EOS
                 {
                     if (success)
                     {
+                        EOSSDKManager.LocalDisplayName = steamName;
                         AuthPreferences.LastLoginProvider = rememberAccountToggle.isOn 
                                                             ? LoginProvider.Steam 
                                                             : LoginProvider.None;

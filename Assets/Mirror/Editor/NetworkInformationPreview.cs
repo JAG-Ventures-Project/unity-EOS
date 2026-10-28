@@ -71,6 +71,16 @@ namespace Mirror
             return title;
         }
 
+        public override void Cleanup()
+        {
+            base.Cleanup();
+        }
+
+        ~NetworkInformationPreview()
+        {
+            base.Cleanup();
+        }
+
         public override bool HasPreviewGUI()
         {
             // need to check if target is null to stop MissingReferenceException
