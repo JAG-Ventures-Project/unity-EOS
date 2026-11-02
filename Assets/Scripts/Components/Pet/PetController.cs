@@ -32,6 +32,26 @@ namespace Minimap.FPC
         private Transform _targetOwner;
         private Vector3 _lastPosition;
 
+
+        #region Synchronized State (SyncVars)
+        [SyncVar(hook = nameof(OnPetColorChanged))]
+        private Vector3 _netColor = Vector3.one;
+        [SyncVar(hook = nameof(OnPetActiveChanged))]
+        private bool _isPetActive = true;
+        [SyncVar]
+        private Vector3 _netVelocity;
+        [SyncVar]
+        private Vector3 _netCoordinates;
+        [SyncVar]
+        private uint _netLevel = 1;
+
+        public Vector3 NetVelocity => _netVelocity;
+        public Vector3 NetCoordinates => _netCoordinates;
+        public uint NetLevel => _netLevel;
+        public Color BodyColor => new Color(_netColor.x, _netColor.y, _netColor.z);
+        public bool IsPetActive => _isPetActive;
+        #endregion
+
 #if UNITY_EDITOR
         private void OnValidate()
         {            
@@ -43,26 +63,6 @@ namespace Minimap.FPC
             Assert.IsNotNull(_networkTransform, "[PetController] NetworkTransformReliable component missing.");
         }
 #endif
-
-#region Synchronized State (SyncVars)
-        [SyncVar(hook = nameof(OnPetColorChanged))]
-        private Vector3 _netColor = Vector3.one;
-        [SyncVar(hook = nameof(OnPetActiveChanged))]
-        private bool _isPetActive = true;
-        [SyncVar]
-        private Vector3 _netVelocity;
-        [SyncVar]
-        private Vector3 _netCoordinates;
-        [SyncVar]
-        private uint _netLevel = 1;
-        
-        public Vector3 NetVelocity => _netVelocity;
-        public Vector3 NetCoordinates => _netCoordinates;
-        public uint NetLevel => _netLevel;
-        public Color BodyColor => new Color(_netColor.x, _netColor.y, _netColor.z);
-        public bool IsPetActive => _isPetActive;
-#endregion
-
         private void Awake()
         {
             this.enabled = false;
@@ -113,7 +113,7 @@ namespace Minimap.FPC
             targetPos.y += Mathf.Sin(Time.time * _hoverFrequency) * _hoverAmplitude;
             transform.position = Vector3.Lerp(transform.position, targetPos, Time.fixedDeltaTime * _followSpeed);
             transform.rotation = Quaternion.Slerp(transform.rotation, _targetOwner.rotation, Time.fixedDeltaTime * _rotationSpeed);
-            
+
             // Authoritative SyncVar calculations
             _netVelocity = (transform.position - _lastPosition) / Time.fixedDeltaTime;
             _netCoordinates = new Vector3(transform.position.x, transform.position.z, transform.position.y);
@@ -123,7 +123,7 @@ namespace Minimap.FPC
         [Server]
         public void SetOwner(Transform owner)
         {
-            _targetOwner = owner;    
+            _targetOwner = owner;
             // or just set it to true if 100% we will have owner 
             this.enabled = _isPetActive && (_targetOwner != null);
         }
@@ -186,7 +186,7 @@ namespace Minimap.FPC
             {
                 this.enabled = false;
             }
-            
+
             _meshRenderer.enabled = active;
             _collider.enabled = active;
         }

@@ -22,6 +22,7 @@ namespace EOS
         [SerializeField] private Color notificationTextColor;
 
         public event Action OnDismissed;
+        private Action<bool> _onResultCallback;
 
         public TMP_Text TitleText => titleText;
         public TMP_Text NotificationText => notificationText;
@@ -42,8 +43,9 @@ namespace EOS
             dismissButton.onClick.AddListener(Dismiss);
         }
 
-        public void SetNotification(string message, NotificationType type = NotificationType.Normal)
+        public void SetNotification(string message, NotificationType type = NotificationType.Normal, Action<bool> onResult = null)
         {
+            _onResultCallback = onResult;
             notificationTextColor = GetColorForType(type);
 
             notificationText.text = message ?? string.Empty;
@@ -67,10 +69,22 @@ namespace EOS
             };
         }
 
+        // not used currently
+        public void Confirm()
+        {
+            gameObject.SetActive(false);
+            OnDismissed?.Invoke();
+            _onResultCallback?.Invoke(true);
+            _onResultCallback = null;
+        }
+
         public void Dismiss()
         {
             gameObject.SetActive(false);
             OnDismissed?.Invoke();
+            // not used currently
+            _onResultCallback?.Invoke(false);
+            _onResultCallback = null;
         }
     }
 }

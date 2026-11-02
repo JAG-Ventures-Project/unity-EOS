@@ -88,13 +88,12 @@ namespace EOS
 
                 if (info.ResultCode == Result.Success)
                 {
-                    onComplete?.Invoke(true, null);
+                    CompleteOperation(onComplete, true);
                 }
                 else
                 {
                     string error = $"Failed to write cloud file '{filename}': {info.ResultCode}";
-                    Debug.LogError($"[PlayerDataStorageManager] {error}");
-                    onComplete?.Invoke(false, error);
+                    CompleteOperation(onComplete, false, error);
                 }
 
                 // If newer changes were queued while this upload was in flight, upload the latest state now
@@ -143,19 +142,18 @@ namespace EOS
                 {
                     byte[] fileBytes = memoryStream.ToArray();
                     memoryStream.Dispose();
-                    onComplete(true, fileBytes, null);
+                    CompleteOperation(onComplete, true, fileBytes);
                 }
                 else if (info.ResultCode == Result.NotFound)
                 {
                     memoryStream.Dispose();
-                    onComplete(false, null, "NotFound");
+                    CompleteOperation(onComplete, false, null, "NotFound");
                 }
                 else
                 {
                     memoryStream.Dispose();
                     string error = $"Failed to read cloud file '{filename}': {info.ResultCode}";
-                    Debug.LogError($"[PlayerDataStorageManager] {error}");
-                    onComplete(false, null, error);
+                    CompleteOperation(onComplete, false, null, error);
                 }
             });
         }
@@ -184,16 +182,16 @@ namespace EOS
 
                     if (parsedSuccessfully)
                     {
-                        onComplete?.Invoke(true, data, null);
+                        CompleteOperation(onComplete, true, data);
                     }
                     else
                     {
-                        onComplete?.Invoke(false, default, parseError);
+                        CompleteOperation(onComplete, false, default, parseError);
                     }
                 }
                 else
                 {
-                    onComplete?.Invoke(false, default, error);
+                    CompleteOperation(onComplete, false, default, error);
                 }
             });
         }
@@ -212,15 +210,38 @@ namespace EOS
             {
                 if (info.ResultCode == Result.Success)
                 {
-                    onComplete?.Invoke(true, null);
+                    CompleteOperation(onComplete, true);
                 }
                 else
                 {
                     string error = $"Failed to delete cloud file '{filename}': {info.ResultCode}";
-                    Debug.LogError($"[PlayerDataStorageManager] {error}");
-                    onComplete?.Invoke(false, error);
+                    CompleteOperation(onComplete, false, error);
                 }
             });
         }
+
+        #region Operation Completion Helpers
+
+        private void CompleteOperation(Action<bool, string> onComplete, bool success, string resultOrError = null)
+        {
+            if (!success)
+            {
+                Debug.LogError($"[PlayerDataStorageManager] {resultOrError}");
+            }
+
+            onComplete?.Invoke(success, resultOrError);
+        }
+
+        private void CompleteOperation<T>(Action<bool, T, string> onComplete, bool success, T data, string error = null)
+        {
+            if (!success && error != "NotFound")
+            {
+                Debug.LogError($"[PlayerDataStorageManager] {error}");
+            }
+
+            onComplete?.Invoke(success, data, error);
+        }
+
+        #endregion
     }
 }

@@ -42,7 +42,7 @@ namespace EOS
                     if (!success)
                     {
                         Debug.LogWarning($"[LogoutManager] Epic Logout warning: {error}");
-                        NotificationManager.Instance?.ShowNotification($"Logout warning: {error}", NotificationType.Warning);
+                        NotificationManager.Show($"Logout warning: {error}", NotificationType.Warning);
                         SetButtonsInteractable(true);
                     }
                     FinalizeLogout();

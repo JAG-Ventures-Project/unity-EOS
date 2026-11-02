@@ -16,7 +16,7 @@ namespace EOS
         public const string MatchStartedKey = "MATCH_STARTED";
         public const string ReadyKey = "READY";
         public const string DisplayNameKey = "DISPLAY_NAME";
-        
+
         public string CurrentLobbyId { get; private set; }
         public string CurrentJoinCode { get; private set; }
         public int CurrentMemberCount { get; private set; }
@@ -24,8 +24,9 @@ namespace EOS
         public bool IsLobbyOwner { get; private set; }
         public bool AreAllJoinersReady { get; private set; }
         public bool IsCleaningOrphan { get; private set; }
+        public bool HasGameStarted => _hasGameStarted;
         public ProductUserId LocalProductUserId => _localProductUserId;
-        
+
         public event Action<string> OnLobbyCreated;
         public event Action<string> OnLobbyJoined;
         public event Action OnLobbyLeft;
@@ -35,25 +36,26 @@ namespace EOS
         public event Action<string> OnGameStarted;
         public event Action<bool> OnReadyStatusChanged;
         public event Action OnLobbyUpdated;
-        
+
         private const string BucketId = "GameLobby";
         private const string CodeCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        
+
         private readonly PlatformInterface _platformHandle;
         private readonly LobbyInterface _lobbyHandle;
         private ProductUserId _localProductUserId;
-        
+
         private ulong _memberStatusNotificationId = Common.InvalidNotificationid;
         private ulong _lobbyUpdateNotificationId = Common.InvalidNotificationid;
         private ulong _memberUpdateNotificationId = Common.InvalidNotificationid;
         private string _currentHostAddress;
         private bool _hasGameStarted;
-        
 
-        public LobbyManager(PlatformInterface platformInterface) {
+
+        public LobbyManager(PlatformInterface platformInterface)
+        {
             _platformHandle = platformInterface;
             Assert.IsNotNull(_platformHandle, "[LobbyManager] PlatformInterface must not be null.");
-            
+
             _lobbyHandle = _platformHandle.GetLobbyInterface();
             Assert.IsNotNull(_lobbyHandle, "[LobbyManager] LobbyInterface failed to initialize.");
         }
@@ -146,9 +148,7 @@ namespace EOS
 
             if (data.ResultCode != Result.Success)
             {
-                string error = $"CreateLobby failed: {data.ResultCode}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"CreateLobby failed: {data.ResultCode}");
                 return;
             }
             CurrentLobbyId = data.LobbyId;
@@ -169,9 +169,7 @@ namespace EOS
             Result result = _lobbyHandle.UpdateLobbyModification(modOptions, out LobbyModification modHandle);
             if (result != Result.Success)
             {
-                string error = $"UpdateLobbyModification failed: {result}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"UpdateLobbyModification failed: {result}");
                 return;
             }
             // adding JOIN_CODE attribute (Public so it is searchable)
@@ -209,7 +207,7 @@ namespace EOS
             var updateOptions = new UpdateLobbyOptions { LobbyModificationHandle = modHandle };
             _lobbyHandle.UpdateLobby(updateOptions, (onComplete, modHandle), HandleUpdateLobbyCallback);
         }
-        
+
         private void HandleUpdateLobbyCallback(UpdateLobbyCallbackInfo data)
         {
             var (onComplete, modHandle) = ((Action<bool, string>, LobbyModification))data.ClientData;
@@ -217,18 +215,16 @@ namespace EOS
 
             if (data.ResultCode != Result.Success)
             {
-                string error = $"Setting lobby attributes failed: {data.ResultCode}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"Setting lobby attributes failed: {data.ResultCode}");
                 return;
             }
             CurrentMemberCount = 1;
             AreAllJoinersReady = true;
             SubscribeToNotifications();
             OnLobbyCreated?.Invoke(CurrentJoinCode);
-            onComplete?.Invoke(true, CurrentJoinCode);
+            CompleteOperation(onComplete, true, CurrentJoinCode);
         }
-        
+
         /// <summary>
         /// Searches for a lobby matching the given short code and joins it.
         /// </summary>
@@ -241,9 +237,7 @@ namespace EOS
             Result result = _lobbyHandle.CreateLobbySearch(searchOptions, out LobbySearch searchHandle);
             if (result != Result.Success)
             {
-                string error = $"CreateLobbySearch failed: {result}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"CreateLobbySearch failed: {result}");
                 return;
             }
 
@@ -266,16 +260,14 @@ namespace EOS
             var findOptions = new LobbySearchFindOptions { LocalUserId = _localProductUserId };
             searchHandle.Find(findOptions, (searchHandle, onComplete, formattedCode), HandleFindLobbiesCallback);
         }
-        
+
         private void HandleFindLobbiesCallback(LobbySearchFindCallbackInfo data)
         {
             var (searchHandle, onComplete, joinCode) = ((LobbySearch, Action<bool, string>, string))data.ClientData;
             if (data.ResultCode != Result.Success)
             {
                 searchHandle.Release();
-                string error = $"Search failed: {data.ResultCode}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"Search failed: {data.ResultCode}");
                 return;
             }
             var countOptions = new LobbySearchGetSearchResultCountOptions();
@@ -283,9 +275,7 @@ namespace EOS
             if (count == 0)
             {
                 searchHandle.Release();
-                string error = "Lobby not found. Please verify the room code.";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, "Lobby not found. Please verify the room code.");
                 return;
             }
             var copyOptions = new LobbySearchCopySearchResultByIndexOptions { LobbyIndex = 0 };
@@ -293,9 +283,7 @@ namespace EOS
             searchHandle.Release();
             if (copyResult != Result.Success)
             {
-                string error = $"Failed to copy lobby search details: {copyResult}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"Failed to copy lobby search details: {copyResult}");
                 return;
             }
             // get host address from details
@@ -312,9 +300,7 @@ namespace EOS
                 if (matchAttr.Data.Value.AsUtf8 == "true")
                 {
                     detailsHandle.Release();
-                    string error = "Match has already started in this room.";
-                    OnLobbyError?.Invoke(error);
-                    onComplete?.Invoke(false, error);
+                    CompleteOperation(onComplete, false, "Match has already started in this room.");
                     return;
                 }
             }
@@ -327,7 +313,7 @@ namespace EOS
             };
             _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle), HandleJoinLobbyCallback);
         }
-        
+
         private void HandleJoinLobbyCallback(JoinLobbyCallbackInfo data)
         {
             var (onComplete, joinCode, hostAddress, detailsHandle) = ((Action<bool, string>, string, string, LobbyDetails))data.ClientData;
@@ -336,9 +322,7 @@ namespace EOS
 
             if (data.ResultCode != Result.Success)
             {
-                string error = $"JoinLobby failed: {data.ResultCode}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"JoinLobby failed: {data.ResultCode}");
                 return;
             }
             CurrentLobbyId = data.LobbyId;
@@ -352,7 +336,7 @@ namespace EOS
             UpdateAndCheckReadyStatus();
             SetLocalMemberDisplayName(EOSSDKManager.LocalDisplayName);
             OnLobbyJoined?.Invoke(hostAddress);
-            onComplete?.Invoke(true, hostAddress);
+            CompleteOperation(onComplete, true, hostAddress);
         }
 
         /// <summary>
@@ -362,7 +346,7 @@ namespace EOS
         {
             if (!IsInLobby)
             {
-                onComplete?.Invoke(true);
+                CompleteOperation(onComplete, true);
                 return;
             }
 
@@ -377,21 +361,50 @@ namespace EOS
                 _lobbyHandle.LeaveLobby(leaveOptions, onComplete, HandleLeaveLobbyCallback);
             }
         }
-        
+
+        public void KickMember(ProductUserId targetUserId, Action<bool, string> onComplete = null)
+        {
+            Assert.IsTrue(IsLobbyOwner, "[LobbyManager] Only the lobby owner can kick members.");
+            Assert.IsNotNull(targetUserId, "[LobbyManager] TargetUserId must not be null.");
+
+            var kickOptions = new KickMemberOptions
+            {
+                LobbyId = CurrentLobbyId,
+                LocalUserId = _localProductUserId,
+                TargetUserId = targetUserId
+            };
+
+            _lobbyHandle.KickMember(kickOptions, onComplete, HandleKickMemberCallback);
+        }
+
+        private void HandleKickMemberCallback(KickMemberCallbackInfo data)
+        {
+            var onComplete = data.ClientData as Action<bool, string>;
+            if (data.ResultCode != Result.Success)
+            {
+                CompleteOperation(onComplete, false, $"KickMember failed: {data.ResultCode}");
+                return;
+            }
+
+            CompleteOperation(onComplete, true, null);
+        }
+
         private void HandleDestroyLobbyCallback(DestroyLobbyCallbackInfo data)
         {
             var onComplete = data.ClientData as Action<bool>;
             ResetState();
             OnLobbyLeft?.Invoke();
-            onComplete?.Invoke(data.ResultCode == Result.Success);
+            bool success = data.ResultCode == Result.Success;
+            CompleteOperation(onComplete, success, success ? null : $"DestroyLobby failed: {data.ResultCode}");
         }
-        
+
         private void HandleLeaveLobbyCallback(LeaveLobbyCallbackInfo data)
         {
             var onComplete = data.ClientData as Action<bool>;
             ResetState();
             OnLobbyLeft?.Invoke();
-            onComplete?.Invoke(data.ResultCode == Result.Success);
+            bool success = data.ResultCode == Result.Success;
+            CompleteOperation(onComplete, success, success ? null : $"LeaveLobby failed: {data.ResultCode}");
         }
 
         private void ResetState()
@@ -406,7 +419,7 @@ namespace EOS
             _currentHostAddress = null;
             _hasGameStarted = false;
         }
-        
+
         private void SubscribeToNotifications()
         {
             UnsubscribeFromNotifications();
@@ -494,7 +507,7 @@ namespace EOS
                 manager.OnLobbyUpdated?.Invoke();
             }
         }
-        
+
         private static void OnMemberStatusChanged(LobbyMemberStatusReceivedCallbackInfo data)
         {
             var manager = data.ClientData as LobbyManager;
@@ -533,18 +546,17 @@ namespace EOS
                     {
                         manager.ResetState();
                         manager.OnLobbyLeft?.Invoke();
+                        manager.OnLobbyError?.Invoke("The host closed the room.");
                     }
                     break;
             }
         }
-                
+
         public void StartGame(Action<bool, string> onComplete = null)
         {
             if (!IsInLobby || !IsLobbyOwner)
             {
-                string error = "[LobbyManager] Cannot start game: Not the lobby owner or not in a lobby.";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, "[LobbyManager] Cannot start game: Not the lobby owner or not in a lobby.");
                 return;
             }
 
@@ -556,9 +568,7 @@ namespace EOS
             Result result = _lobbyHandle.UpdateLobbyModification(modOptions, out LobbyModification modHandle);
             if (result != Result.Success)
             {
-                string error = $"[LobbyManager] UpdateLobbyModification failed: {result}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"[LobbyManager] UpdateLobbyModification failed: {result}");
                 return;
             }
 
@@ -571,16 +581,29 @@ namespace EOS
             modHandle.AddAttribute(startOptions);
 
             var updateOptions = new UpdateLobbyOptions { LobbyModificationHandle = modHandle };
-            _lobbyHandle.UpdateLobby(updateOptions, (onComplete, modHandle), HandleCallback);
+            _lobbyHandle.UpdateLobby(updateOptions, (onComplete, modHandle), HandleStartGameUpdateCallback);
+        }
+
+        private void HandleStartGameUpdateCallback(UpdateLobbyCallbackInfo data)
+        {
+            var (onComplete, modHandle) = ((Action<bool, string>, LobbyModification))data.ClientData;
+            modHandle?.Release();
+
+            if (data.ResultCode != Result.Success)
+            {
+                CompleteOperation(onComplete, false, $"[LobbyManager] StartGame failed: {data.ResultCode}");
+                return;
+            }
+
+            _hasGameStarted = true;
+            CompleteOperation(onComplete, true, null);
         }
 
         public void SetReadyStatus(bool isReady, Action<bool, string> onComplete = null)
         {
             if (!IsInLobby)
             {
-                string error = "[LobbyManager] Cannot set ready status: Not in a lobby.";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, "[LobbyManager] Cannot set ready status: Not in a lobby.");
                 return;
             }
 
@@ -592,9 +615,7 @@ namespace EOS
             Result result = _lobbyHandle.UpdateLobbyModification(modOptions, out LobbyModification modHandle);
             if (result != Result.Success)
             {
-                string error = $"[LobbyManager] UpdateLobbyModification failed: {result}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"[LobbyManager] UpdateLobbyModification failed: {result}");
                 return;
             }
 
@@ -614,9 +635,7 @@ namespace EOS
         {
             if (!IsInLobby || !IsLobbyOwner)
             {
-                string error = "[LobbyManager] Cannot reset match state: Not the lobby owner or not in a lobby.";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, "[LobbyManager] Cannot reset match state: Not the lobby owner or not in a lobby.");
                 return;
             }
 
@@ -628,9 +647,7 @@ namespace EOS
             Result result = _lobbyHandle.UpdateLobbyModification(modOptions, out LobbyModification modHandle);
             if (result != Result.Success)
             {
-                string error = $"[LobbyManager] UpdateLobbyModification failed: {result}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"[LobbyManager] UpdateLobbyModification failed: {result}");
                 return;
             }
 
@@ -643,7 +660,22 @@ namespace EOS
             modHandle.AddAttribute(matchStartedOptions);
 
             var updateOptions = new UpdateLobbyOptions { LobbyModificationHandle = modHandle };
-            _lobbyHandle.UpdateLobby(updateOptions, (onComplete, modHandle), HandleCallback);
+            _lobbyHandle.UpdateLobby(updateOptions, (onComplete, modHandle), HandleResetMatchStateUpdateCallback);
+        }
+
+        private void HandleResetMatchStateUpdateCallback(UpdateLobbyCallbackInfo data)
+        {
+            var (onComplete, modHandle) = ((Action<bool, string>, LobbyModification))data.ClientData;
+            modHandle?.Release();
+
+            if (data.ResultCode != Result.Success)
+            {
+                CompleteOperation(onComplete, false, $"[LobbyManager] ResetMatchState failed: {data.ResultCode}");
+                return;
+            }
+
+            _hasGameStarted = false;
+            CompleteOperation(onComplete, true, null);
         }
 
         private void HandleCallback(UpdateLobbyCallbackInfo data)
@@ -653,13 +685,11 @@ namespace EOS
 
             if (data.ResultCode != Result.Success)
             {
-                string error = $"[LobbyManager] Lobby update failed: {data.ResultCode}";
-                OnLobbyError?.Invoke(error);
-                onComplete?.Invoke(false, error);
+                CompleteOperation(onComplete, false, $"[LobbyManager] Lobby update failed: {data.ResultCode}");
                 return;
             }
 
-            onComplete?.Invoke(true, null);
+            CompleteOperation(onComplete, true, null);
         }
 
         public void SetLocalMemberDisplayName(string displayName, Action<bool, string> onComplete = null)
@@ -667,7 +697,12 @@ namespace EOS
             if (!IsInLobby) return;
 
             var modOptions = new UpdateLobbyModificationOptions { LobbyId = CurrentLobbyId, LocalUserId = _localProductUserId };
-            if (_lobbyHandle.UpdateLobbyModification(modOptions, out LobbyModification modHandle) != Result.Success) return;
+            Result result = _lobbyHandle.UpdateLobbyModification(modOptions, out LobbyModification modHandle);
+            if (result != Result.Success)
+            {
+                CompleteOperation(onComplete, false, $"[LobbyManager] UpdateLobbyModification failed: {result}");
+                return;
+            }
 
             modHandle.AddMemberAttribute(new LobbyModificationAddMemberAttributeOptions
             {
@@ -816,6 +851,30 @@ namespace EOS
             return builder.ToString();
         }
 
+        #region Operation Completion Helpers
+
+        private void CompleteOperation(Action<bool, string> onComplete, bool success, string resultOrError = null)
+        {
+            if (!success)
+            {
+                OnLobbyError?.Invoke(resultOrError);
+            }
+
+            onComplete?.Invoke(success, resultOrError);
+        }
+
+        private void CompleteOperation(Action<bool> onComplete, bool success, string error = null)
+        {
+            if (!success)
+            {
+                OnLobbyError?.Invoke(error);
+            }
+
+            onComplete?.Invoke(success);
+        }
+
+        #endregion
+
         public void Dispose()
         {
             LobbyPreferences.ClearInLobby(_localProductUserId);
@@ -826,6 +885,6 @@ namespace EOS
                 LeaveLobby();
             }
         }
-    
+
     }
 }

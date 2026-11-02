@@ -14,6 +14,7 @@ namespace EOS
         bool IsLobbyOwner { get; }
         bool AreAllJoinersReady { get; }
         bool IsCleaningOrphan { get; }
+        bool HasGameStarted { get; }
         ProductUserId LocalProductUserId { get; }
         event Action<string> OnLobbyCreated;      
         event Action<string> OnLobbyJoined;       
@@ -35,6 +36,7 @@ namespace EOS
         List<ProductUserId> GetCurrentMemberUserIds();
         string GetMemberDisplayName(ProductUserId userId);
         bool IsMemberReady(ProductUserId userId);
+        void KickMember(ProductUserId targetUserId, Action<bool, string> onComplete = null);
         void CheckAndCleanOrphanLobbyOnLogin(Action onComplete = null);
         void Dispose();
     }

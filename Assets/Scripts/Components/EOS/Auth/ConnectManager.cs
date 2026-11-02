@@ -20,7 +20,6 @@ namespace EOS
         /// <summary>
         /// Logs in as a Guest using the local machine's Device ID.
         /// </summary>
-        
         public void LoginAsGuest(string displayName, Action<bool, string> onComplete)
         {
             var createDeviceIdOptions = new CreateDeviceIdOptions
@@ -33,7 +32,7 @@ namespace EOS
                 // make sure the device has an ID and it's not a duplicate , we call this becasue the network call can fail
                 if (createCb.ResultCode != Result.Success && createCb.ResultCode != Result.DuplicateNotAllowed)
                 {
-                    onComplete?.Invoke(false, $"CreateDeviceId failed: {createCb.ResultCode}");
+                    CompleteOperation(onComplete, false, $"CreateDeviceId failed: {createCb.ResultCode}");
                     return;
                 }
                 PerformConnectLogin(ExternalCredentialType.DeviceidAccessToken, null, displayName, onComplete);
@@ -54,11 +53,11 @@ namespace EOS
                     LocalProductUserId = createCb.LocalUserId;
                     EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
                     Debug.Log($"[ConnectManager] Created new EOS user! PUID: {LocalProductUserId}");
-                    onComplete?.Invoke(true, null);
+                    CompleteOperation(onComplete, true);
                 }
                 else
                 {
-                    onComplete?.Invoke(false, $"CreateUser failed: {createCb.ResultCode}");
+                    CompleteOperation(onComplete, false, $"CreateUser failed: {createCb.ResultCode}");
                 }
             });
         }
@@ -67,7 +66,7 @@ namespace EOS
         {
             if (string.IsNullOrEmpty(steamTicketHex))
             {
-                onComplete?.Invoke(false, "Steam ticket is null or empty!");
+                CompleteOperation(onComplete, false, "Steam ticket is null or empty!");
                 return;
             }
             PerformConnectLogin(ExternalCredentialType.SteamSessionTicket, steamTicketHex, displayName, onComplete);
@@ -77,7 +76,7 @@ namespace EOS
         {
             if (string.IsNullOrEmpty(epicAuthToken))
             {
-                onComplete?.Invoke(false, "Epic auth token is null or empty!");
+                CompleteOperation(onComplete, false, "Epic auth token is null or empty!");
                 return;
             }
             PerformConnectLogin(ExternalCredentialType.Epic, epicAuthToken, null, onComplete);
@@ -106,7 +105,7 @@ namespace EOS
                     LocalProductUserId = loginCb.LocalUserId;
                     EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
                     Debug.Log($"[ConnectManager] {credentialType} login success! PUID: {LocalProductUserId}");
-                    onComplete?.Invoke(true, null);
+                    CompleteOperation(onComplete, true);
                 }
                 // first time on this pc (creats new account)
                 else if (loginCb.ResultCode == Result.InvalidUser)
@@ -117,15 +116,30 @@ namespace EOS
                 // other error (e.g. Network Disconnected)
                 else
                 {
-                    onComplete?.Invoke(false, $"Connect Login failed: {loginCb.ResultCode}");
+                    CompleteOperation(onComplete, false, $"Connect Login failed: {loginCb.ResultCode}");
                 }
             });
         }
+
         public void ResetSession()
         {
             LocalProductUserId = null;
             EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(null);
             Debug.Log("[ConnectManager] Connect session reset.");
         }
+
+        #region Operation Completion Helpers
+
+        private void CompleteOperation(Action<bool, string> onComplete, bool success, string resultOrError = null)
+        {
+            if (!success)
+            {
+                Debug.LogError(resultOrError);
+            }
+
+            onComplete?.Invoke(success, resultOrError);
+        }
+
+        #endregion
     }
 }

@@ -10,7 +10,7 @@ namespace EOS
     public class EndGame : MonoBehaviour
     {
         [SerializeField] private Button endGameButton;
-        [SerializeField, HideInInspector] private string nextSceneName = "Lobby"; 
+        [SerializeField, HideInInspector] private string nextSceneName = "Lobby";
 
         private ILobby _lobby;
 
@@ -42,27 +42,30 @@ namespace EOS
             // Host/Server check: host resets the match state in EOS lobby and brings all players back
             if (NetworkServer.active)
             {
-                _lobby.ResetMatchState((success, error) =>
-                {
-                    if (!success)
-                    {
-                        Debug.LogError($"[EndGame] Failed to reset match state in EOS lobby: {error}");
-                        NotificationManager.Instance?.ShowNotification($"Match reset error: {error}", NotificationType.Error);
-                    }
-
-                    // Stop host in Mirror: disconnects all clients and automatically loads offlineScene (Lobby.unity)
-                    EOSNetworkManager.Instance?.StopHost();
-                });
+                _lobby.ResetMatchState(HandleHostResetMatchCallback);
             }
             else
             {
-                // Client: leave the old EOS lobby, stop Mirror client, and load the Lobby scene (Create/Join menu)
-                _lobby.LeaveLobby(_ =>
-                {
-                    EOSNetworkManager.Instance.StopClient();
-                    SceneManager.LoadScene(nextSceneName);
-                });
+                // Client: leave the old EOS lobby and stop Mirror client
+                _lobby.LeaveLobby(HandleClientLeaveLobbyCallback);
             }
+        }
+
+        private void HandleHostResetMatchCallback(bool success, string error)
+        {
+            if (!success)
+            {
+                Debug.LogError($"[EndGame] Failed to reset match state in EOS lobby: {error}");
+                NotificationManager.Show($"Match reset error: {error}", NotificationType.Error);
+            }
+
+            // Stop host in Mirror: disconnects all clients and automatically loads offlineScene (Lobby.unity)
+            EOSNetworkManager.Instance?.StopNetwork();
+        }
+
+        private void HandleClientLeaveLobbyCallback(bool success)
+        {
+            EOSNetworkManager.Instance?.StopNetwork();
         }
     }
 }

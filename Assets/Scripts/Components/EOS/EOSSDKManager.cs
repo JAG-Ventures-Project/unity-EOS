@@ -13,7 +13,6 @@ namespace EOS
     /// </summary>
     [DefaultExecutionOrder(-10)]
     [RequireComponent(typeof(SteamManager))]
-    // Q: is there a good way to require the notification manager here ? , and is it sensible to keep it hooked with the EOSSDKManager Component. or is it ok in it's current state.
     public class EOSSDKManager : MonoBehaviour, IEOSSDKManager
     {
         [SerializeField] private EosApiKey eosApiKey;

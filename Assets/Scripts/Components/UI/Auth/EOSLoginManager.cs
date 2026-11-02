@@ -58,7 +58,7 @@ namespace EOS
                 return;
             }
             // 2. In Unity Editor or standalone build: if player enabled Remember Me, attempt silent auto-login via PersistentAuth
-            // Q: is it better to do this before adding listeners in Awake()? 
+            // Q: is it better to do this before adding listeners in Awake()? add it 
             switch (AuthPreferences.LastLoginProvider)
             {
                 case LoginProvider.Epic when AuthPreferences.RememberEpicAccount:
@@ -70,7 +70,6 @@ namespace EOS
                     SteamLogin();
                     break;
             }
-
         }
 
         private void OnEnable() {
@@ -83,13 +82,6 @@ namespace EOS
             // guestLoginButton.interactable = false; 
             // epicGamesLoginButton.interactable = false; 
             // steamLoginButton.interactable = false; 
-        }
-
-        private void OnDestroy() {
-            guestLoginButton.onClick.RemoveListener(GuestLogin);   
-            epicGamesLoginButton.onClick.RemoveListener(EpicGamesLogin);
-            rememberAccountToggle.onValueChanged.RemoveListener(OnRememberAccountToggleValueChanged);
-            steamLoginButton.onClick.RemoveListener(SteamLogin);
         }
 
         private void GuestLogin() 
@@ -119,7 +111,7 @@ namespace EOS
                 else
                 {
                     Debug.LogError($"[EOSLoginManager] Guest Login Failed: {error}");
-                    NotificationManager.Instance?.ShowNotification($"Guest Login Failed: {error}", NotificationType.Error);
+                    NotificationManager.Show($"Guest Login Failed: {error}", NotificationType.Error);
                     SetButtonsInteractable(true);
                 }
             });
@@ -154,7 +146,7 @@ namespace EOS
                 if (!authSuccess)
                 {
                     Debug.LogError($"[EOSLoginManager] Epic Games Auth Login Failed: {authError}");
-                    NotificationManager.Instance?.ShowNotification($"Epic Games Auth Login Failed: {authError}", NotificationType.Error);
+                    NotificationManager.Show($"Epic Games Auth Login Failed: {authError}", NotificationType.Error);
                     SetButtonsInteractable(true);
                     return;
                 }
@@ -172,7 +164,7 @@ namespace EOS
             if (string.IsNullOrEmpty(userAuthToken))
             {
                 Debug.LogError("[EOSLoginManager] Failed to copy Epic user auth token!");
-                NotificationManager.Instance?.ShowNotification("Failed to copy Epic user auth token.", NotificationType.Error);
+                NotificationManager.Show("Failed to copy Epic user auth token.", NotificationType.Error);
                 SetButtonsInteractable(true);
                 return;
             }
@@ -190,7 +182,7 @@ namespace EOS
                 else
                 {
                     Debug.LogError($"[EOSLoginManager] Epic Games Connect Login Failed: {connectError}");
-                    NotificationManager.Instance?.ShowNotification($"Epic Games Connect Login Failed: {connectError}", NotificationType.Error);
+                    NotificationManager.Show($"Epic Games Connect Login Failed: {connectError}", NotificationType.Error);
                     SetButtonsInteractable(true);
                 }
             });
@@ -206,7 +198,7 @@ namespace EOS
             if (!SteamManager.Initialized)
             {
                 Debug.LogError("Steam is not initialized!");
-                NotificationManager.Instance?.ShowNotification("Steam is not open or initialized. Please make sure Steam is running.", NotificationType.Warning);
+                NotificationManager.Show("Steam is not open or initialized. Please make sure Steam is running.", NotificationType.Warning);
                 return;
             }
 
@@ -222,7 +214,7 @@ namespace EOS
             if (ticket == HAuthTicket.Invalid)
             {
                 Debug.LogError("Failed to request Steam Web API ticket!");
-                NotificationManager.Instance?.ShowNotification("Failed to request Steam Web API ticket.", NotificationType.Error);
+                NotificationManager.Show("Failed to request Steam Web API ticket.", NotificationType.Error);
                 SetButtonsInteractable(true);
                 return;
             }
@@ -235,7 +227,7 @@ namespace EOS
             if (result.m_eResult != EResult.k_EResultOK)
             {
                 Debug.LogError($"Steam ticket failed: {result.m_eResult}");
-                NotificationManager.Instance?.ShowNotification($"Steam ticket failed: {result.m_eResult}", NotificationType.Error);
+                NotificationManager.Show($"Steam ticket failed: {result.m_eResult}", NotificationType.Error);
 
                 if (EOSSDKManager.SteamAuthTicket != HAuthTicket.Invalid)
                 {
@@ -271,7 +263,7 @@ namespace EOS
                     else
                     {
                         Debug.LogError($"EOS Steam Login Failed: {error}");
-                        NotificationManager.Instance?.ShowNotification($"Steam Login Failed: {error}", NotificationType.Error);
+                        NotificationManager.Show($"Steam Login Failed: {error}", NotificationType.Error);
 
                         SteamUser.CancelAuthTicket(
                             EOSSDKManager.SteamAuthTicket

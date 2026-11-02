@@ -43,12 +43,6 @@ namespace EOS
 
         public AuthManager(PlatformInterface platformInterface)
         {
-            // Q: is it ok to keep this or delte it no need for it ? 
-            // if (EOSSDKManager.Instance != null)
-            // {
-            //     _platformInterface = EOSSDKManager.Instance.GetEOSPlatformInterface();
-            // }
-
             _platformInterface = platformInterface;
             _authInterface = _platformInterface?.GetAuthInterface();
         }
@@ -94,15 +88,6 @@ namespace EOS
         /// </summary>
         private void PerformLogin(LoginCredentialType credentialType, string token, bool fallbackToAccountPortal, Action<bool, string> onComplete)
         {
-            // Q: is it ok to keep this or delte it no need for it ?
-            // if (_authInterface == null)
-            // {
-            //     string error = "[AuthManager] AuthInterface is null! Ensure PlatformInterface has been initialized.";
-            //     Debug.LogError(error);
-            //     onComplete?.Invoke(false, error);
-            //     return;
-            // }
-
             var loginOptions = new LoginOptions
             {
                 Credentials = new Credentials
@@ -120,7 +105,7 @@ namespace EOS
                 {
                     _epicId = loginCallbackInfo.LocalUserId;
                     Debug.Log($"<color=green>[AuthManager] {credentialType} Login Success! EpicAccountId: {_epicId}</color>");
-                    onComplete?.Invoke(true, null);
+                    CompleteOperation(onComplete, true);
                 }
                 else if (!Common.IsOperationComplete(loginCallbackInfo.ResultCode))
                 {
@@ -135,21 +120,13 @@ namespace EOS
                 else
                 {
                     string error = $"[AuthManager] {credentialType} Login Failed: {loginCallbackInfo.ResultCode}";
-                    Debug.LogError(error);
-                    onComplete?.Invoke(false, error);
+                    CompleteOperation(onComplete, false, error);
                 }
             });
         }
 
         public void DeletePersistentAuth(Action<bool, string> onComplete = null)
         {
-            // Q: is it ok to keep this or delte it no need for it ? 
-            // if (_authInterface == null)
-            // {
-            //     onComplete?.Invoke(false, "[AuthManager] AuthInterface is null.");
-            //     return;
-            // }
-
             // even though the documentaion says use "LogoutOptions" we used "DeletePersistentAuthOptions" to Delete the stored token from the OS keychain
             // https://dev.epicgames.com/docs/api-ref/functions/eos-auth-delete-persistent-auth
             var deleteOptions = new DeletePersistentAuthOptions();
@@ -164,7 +141,7 @@ namespace EOS
                 {
                     Debug.Log("[AuthManager] Persistent Auth credentials successfully deleted.");
                 }
-                onComplete?.Invoke(success, success ? null : callbackInfo.ResultCode.ToString());
+                CompleteOperation(onComplete, success, success ? null : callbackInfo.ResultCode.ToString());
             });
         }
 
@@ -199,7 +176,7 @@ namespace EOS
         {
             if (_authInterface == null || _epicId == null)
             {
-                onComplete?.Invoke(false, "[AuthManager] Cannot log out: Not logged in or AuthInterface is null.");
+                CompleteOperation(onComplete, false, "[AuthManager] Cannot log out: Not logged in or AuthInterface is null.");
                 return;
             }
 
@@ -212,7 +189,6 @@ namespace EOS
             {
                 if (logoutCallbackInfo.ResultCode == Result.Success)
                 {
-
                     Debug.Log("[AuthManager] Epic Logout Success");
                     _epicId = null;
 
@@ -220,13 +196,12 @@ namespace EOS
                     {
                         IsRememberMe = false;
                     }
-                    onComplete?.Invoke(true, null);
+                    CompleteOperation(onComplete, true);
                 }
                 else
                 {
                     string error = $"[AuthManager] Epic Games Logout Failed: {logoutCallbackInfo.ResultCode}";
-                    Debug.LogError(error);
-                    onComplete?.Invoke(false, error);
+                    CompleteOperation(onComplete, false, error);
                 }
             });
         }
@@ -297,5 +272,19 @@ namespace EOS
         {
             return !string.IsNullOrEmpty(GetCommandLineArg("-AUTH_PASSWORD"));
         }
+
+        #region Operation Completion Helpers
+
+        private void CompleteOperation(Action<bool, string> onComplete, bool success, string resultOrError = null)
+        {
+            if (!success)
+            {
+                Debug.LogError(resultOrError);
+            }
+
+            onComplete?.Invoke(success, resultOrError);
+        }
+
+        #endregion
     }   
 }

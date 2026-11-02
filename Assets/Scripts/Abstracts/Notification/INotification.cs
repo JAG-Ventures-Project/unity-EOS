@@ -9,8 +9,8 @@ namespace EOS
         Error
     }
 
-    internal interface INotification
+    public interface INotification
     {
-        void ShowNotification(string message, NotificationType type = NotificationType.Normal);
+        void ShowNotification(string message, NotificationType type = NotificationType.Normal, Action<bool> onResult = null);
     }
 }

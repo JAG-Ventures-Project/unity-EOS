@@ -16,6 +16,7 @@ namespace EOS
         [SerializeField] private GameObject petPrefab;
 
         private readonly Dictionary<NetworkConnectionToClient, GameObject> _spawnedPets = new();
+        private bool _isVoluntaryDisconnect;
 
         public static EOSNetworkManager Instance => singleton as EOSNetworkManager;
         
@@ -53,6 +54,7 @@ namespace EOS
 
         public void StopNetwork()
         {          
+            _isVoluntaryDisconnect = true;
             if (NetworkServer.active && NetworkClient.isConnected)
             {
                 StopHost();
@@ -71,7 +73,45 @@ namespace EOS
                 return true;
             }
             return false;
-            
+        }
+
+        public override void OnClientDisconnect()
+        {
+            base.OnClientDisconnect();
+
+            bool wasVoluntary = _isVoluntaryDisconnect;
+            _isVoluntaryDisconnect = false;
+
+            if (wasVoluntary)
+            {
+                return;
+            }
+
+            var lobby = EOSSDKManager.Instance?.Lobby;
+            if (lobby != null && lobby.IsInLobby && !lobby.HasGameStarted)
+            {
+                return;
+            }
+
+            if (lobby != null && lobby.IsInLobby)
+            {
+                lobby.LeaveLobby();
+            }
+
+            NotificationManager.Show("Disconnected from server.", NotificationType.Warning);
+        }
+
+        public override void OnStopClient()
+        {
+            base.OnStopClient();
+            _isVoluntaryDisconnect = false;
+        }
+
+        public override void OnStopServer()
+        {
+            base.OnStopServer();
+            _spawnedPets.Clear();
+            _isVoluntaryDisconnect = false;
         }
 
 #endregion
@@ -86,7 +126,6 @@ namespace EOS
             playerInstance.name = $"{playerPrefab.name} [ConnId={conn.connectionId}]";
             NetworkServer.AddPlayerForConnection(conn, playerInstance);
 
-            // TODO: not all player may have pets (in future) 
             Vector3 spawnOffset = playerInstance.transform.position + Vector3.right * 1.5f;
             GameObject petInstance = Instantiate(petPrefab, spawnOffset, Quaternion.identity);
             petInstance.name = $"{petPrefab.name} [Owner={conn.connectionId}]";
@@ -101,7 +140,6 @@ namespace EOS
         {
             base.OnServerDisconnect(conn);
 
-            //  do it if he has a pet (in future)
             _spawnedPets.TryGetValue(conn, out GameObject petInstance);
             NetworkServer.Destroy(petInstance);
             _spawnedPets.Remove(conn);

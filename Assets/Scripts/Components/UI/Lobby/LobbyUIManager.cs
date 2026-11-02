@@ -104,6 +104,7 @@ namespace EOS
             }
             else
             {
+                joinCodeInputField.text = string.Empty;
                 SetPanelState(isInLobby: false);
                 SetMenuButtonsInteractable(false);
                 _lobby.CheckAndCleanOrphanLobbyOnLogin(HandleOrphanCleanupComplete);
@@ -163,6 +164,14 @@ namespace EOS
                 _lobby.OnReadyStatusChanged -= HandleOnReadyStatusChanged;
                 _lobby.OnLobbyUpdated -= HandleOnLobbyUpdated;
             }
+
+            for (int i = 0; i < _cardPool.Count; i++)
+            {
+                if (_cardPool[i] != null)
+                {
+                    _cardPool[i].OnKickClicked -= HandleOnKickPlayerClicked;
+                }
+            }
         }
         
         private void OnCreateLobbyButtonClicked()
@@ -176,7 +185,7 @@ namespace EOS
             string code = joinCodeInputField.text;
             if (string.IsNullOrWhiteSpace(code))
             {
-                NotificationManager.Instance?.ShowNotification("Please enter a valid room code.", NotificationType.Warning);
+                NotificationManager.Show("Please enter a valid room code.", NotificationType.Warning);
                 return;
             }
             SetMenuButtonsInteractable(false);
@@ -221,7 +230,7 @@ namespace EOS
             startGameButton.interactable = true;
             if (!success)
             {
-                NotificationManager.Instance?.ShowNotification($"Failed to update ready: {error}", NotificationType.Error);
+                NotificationManager.Show($"Failed to update ready: {error}", NotificationType.Error);
                 return;
             }
             _isLocalReady = !_isLocalReady;
@@ -251,14 +260,14 @@ namespace EOS
             {
                 EOSNetworkManager.Instance.StopNetwork();
                 UpdateActionButtonsDisplay();
-                NotificationManager.Instance?.ShowNotification($"Failed to start match: {error}", NotificationType.Error);
+                NotificationManager.Show($"Failed to start match: {error}", NotificationType.Error);
             }
         }
         
         private void HandleOnGameStarted(string hostAddress)
         {
             SetLobbyButtonsInteractable(false);
-            NotificationManager.Instance?.ShowNotification("Match is starting...", NotificationType.Normal);
+            NotificationManager.Show("Match is starting...", NotificationType.Normal);
             string address = !string.IsNullOrEmpty(hostAddress) ? hostAddress : _cachedHostAddress;
             EOSNetworkManager.Instance.StartEosClient(address);
         }
@@ -336,7 +345,7 @@ namespace EOS
             _currentMemberCount = _lobby.CurrentMemberCount;
             UpdateMemberCountDisplay();
             AddPlayerCard(userId);
-            NotificationManager.Instance?.ShowNotification("A player joined the room.", NotificationType.Normal);
+            NotificationManager.Show("A player joined the room.", NotificationType.Normal);
         }
         
         private void HandleOnPlayerLeft(ProductUserId userId)
@@ -344,7 +353,7 @@ namespace EOS
             _currentMemberCount = _lobby.CurrentMemberCount;
             UpdateMemberCountDisplay();
             RemovePlayerCard(userId);
-            NotificationManager.Instance?.ShowNotification("A player left the room.", NotificationType.Normal);
+            NotificationManager.Show("A player left the room.", NotificationType.Normal);
         }
         
         private void HandleOnLobbyError(string errorMessage)
@@ -352,7 +361,7 @@ namespace EOS
             SetMenuButtonsInteractable(true);
             leaveLobbyButton.interactable = true;
             Debug.LogError($"[LobbyUIManager] {errorMessage}");
-            NotificationManager.Instance?.ShowNotification(errorMessage, NotificationType.Error);
+            NotificationManager.Show(errorMessage, NotificationType.Error);
         }
         
         private void SetPanelState(bool isInLobby)
@@ -390,6 +399,8 @@ namespace EOS
             {
                 card.UpdatePlayerName(_lobby.GetMemberDisplayName(card.UserId));
                 card.SetReady(_lobby.IsMemberReady(card.UserId));
+                bool canKick = _lobby.IsLobbyOwner && (card.UserId != _lobby.LocalProductUserId);
+                card.SetKickButtonActive(canKick);
             }
         }
 
@@ -403,6 +414,7 @@ namespace EOS
             }
 
             LobbyPlayerCardUI newCard = Instantiate(playerCardPrefab, playerCardsParent);
+            newCard.OnKickClicked += HandleOnKickPlayerClicked;
             _cardPool.Add(newCard);
             return newCard;
         }
@@ -420,9 +432,26 @@ namespace EOS
                 ? EOSSDKManager.LocalDisplayName
                 : _lobby.GetMemberDisplayName(userId);
 
-            card.SetData(userId, playerName, GetRandomAvatar(), _lobby.IsMemberReady(userId));
+            bool canKick = _lobby.IsLobbyOwner && (userId != _lobby.LocalProductUserId);
+            card.SetData(userId, playerName, GetRandomAvatar(), _lobby.IsMemberReady(userId), canKick);
             card.gameObject.SetActive(true);
             _activePlayerCards[key] = card;
+        }
+
+        private void HandleOnKickPlayerClicked(ProductUserId targetUserId)
+        {
+            Assert.IsNotNull(targetUserId, "[LobbyUIManager] targetUserId must not be null.");
+            if (!_lobby.IsLobbyOwner) return;
+
+            _lobby.KickMember(targetUserId, HandleKickMemberCompleted);
+        }
+
+        private void HandleKickMemberCompleted(bool success, string error)
+        {
+            if (!success && !string.IsNullOrEmpty(error))
+            {
+                NotificationManager.Show($"Failed to kick player: {error}", NotificationType.Error);
+            }
         }
 
         private void RemovePlayerCard(ProductUserId userId)
