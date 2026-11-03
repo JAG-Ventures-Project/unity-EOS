@@ -104,6 +104,9 @@ namespace Minimap.FPC
             _playerActionMap.Enable();
             _jumpAction.performed += OnJumpPerformed;
 
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+
             LocalPlayer = this;
             OnLocalPlayerSpawned?.Invoke(this);
         }
@@ -122,6 +125,9 @@ namespace Minimap.FPC
             _playerActionMap.Disable();
             _jumpAction.performed -= OnJumpPerformed;
             Destroy(_cameraController.gameObject);
+
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         void Update()
@@ -182,10 +188,7 @@ namespace Minimap.FPC
 
         private void OnColorChanged(Vector3 oldColor, Vector3 newColor)
         {
-            if (_playerVisual != null)
-            {
-                _playerVisual.SetColor(new Color(newColor.x, newColor.y, newColor.z));
-            }
+            _playerVisual.SetColor(new Color(newColor.x, newColor.y, newColor.z));
         }
 
 
