@@ -5,7 +5,7 @@ using Epic.OnlineServices.Lobby;
 
 namespace EOS
 {
-    internal interface ILobby
+    public interface ILobby
     {
         string CurrentLobbyId { get; }
         string CurrentJoinCode { get; }
@@ -25,8 +25,12 @@ namespace EOS
         event Action<string> OnGameStarted;
         event Action<bool> OnReadyStatusChanged;
         event Action OnLobbyUpdated;
+        event Action<LobbyInviteCallbackData> OnLobbyInviteReceived;
         void CreateLobby(uint maxMembers, Action<bool, string> onComplete = null);
         void JoinLobbyByCode(string joinCode, Action<bool, string> onComplete = null);
+        void JoinLobbyByInvite(string inviteId, Action<bool, string> onComplete = null);
+        void SendInvite(ProductUserId targetUserId, Action<bool, string> onComplete = null);
+        void RejectInvite(string inviteId, Action<bool, string> onComplete = null);
         void LeaveLobby(Action<bool> onComplete = null);
         void StartGame(Action<bool, string> onComplete = null);
         void SetReadyStatus(bool isReady, Action<bool, string> onComplete = null);

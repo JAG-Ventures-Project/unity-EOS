@@ -36,6 +36,7 @@ namespace EOS
         public event Action<string> OnGameStarted;
         public event Action<bool> OnReadyStatusChanged;
         public event Action OnLobbyUpdated;
+        public event Action<LobbyInviteCallbackData> OnLobbyInviteReceived;
 
         private const string BucketId = "GameLobby";
         private const string CodeCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -47,6 +48,7 @@ namespace EOS
         private ulong _memberStatusNotificationId = Common.InvalidNotificationid;
         private ulong _lobbyUpdateNotificationId = Common.InvalidNotificationid;
         private ulong _memberUpdateNotificationId = Common.InvalidNotificationid;
+        private ulong _inviteNotificationId = Common.InvalidNotificationid;
         private string _currentHostAddress;
         private bool _hasGameStarted;
 
@@ -58,6 +60,8 @@ namespace EOS
 
             _lobbyHandle = _platformHandle.GetLobbyInterface();
             Assert.IsNotNull(_lobbyHandle, "[LobbyManager] LobbyInterface failed to initialize.");
+
+            SubscribeToInviteNotifications();
         }
 
         /// <summary>
@@ -322,7 +326,8 @@ namespace EOS
 
             if (data.ResultCode != Result.Success)
             {
-                CompleteOperation(onComplete, false, $"JoinLobby failed: {data.ResultCode}");
+                string errorMsg = (data.ResultCode == Result.LobbyTooManyPlayers) ? "Lobby is full." : $"JoinLobby failed: {data.ResultCode}";
+                CompleteOperation(onComplete, false, errorMsg);
                 return;
             }
             CurrentLobbyId = data.LobbyId;
@@ -337,6 +342,123 @@ namespace EOS
             SetLocalMemberDisplayName(EOSSDKManager.LocalDisplayName);
             OnLobbyJoined?.Invoke(hostAddress);
             CompleteOperation(onComplete, true, hostAddress);
+        }
+
+        /// <summary>
+        /// Joins an existing lobby using an invitation ID.
+        /// </summary>
+        public void JoinLobbyByInvite(string inviteId, Action<bool, string> onComplete = null)
+        {
+            Assert.IsFalse(IsCleaningOrphan, "[LobbyManager] Cannot join lobby: Orphan cleanup is still pending.");
+            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            Assert.IsNotNull(_localProductUserId, "[LobbyManager] LocalProductUserId must not be null.");
+
+            var copyOptions = new CopyLobbyDetailsHandleByInviteIdOptions { InviteId = inviteId };
+            Result result = _lobbyHandle.CopyLobbyDetailsHandleByInviteId(copyOptions, out LobbyDetails detailsHandle);
+            if (result != Result.Success || detailsHandle == null)
+            {
+                CompleteOperation(onComplete, false, $"Failed to inspect lobby invite: {result}");
+                return;
+            }
+
+            var infoOptions = new LobbyDetailsCopyInfoOptions();
+            if (detailsHandle.CopyInfo(infoOptions, out LobbyDetailsInfo info) == Result.Success && info != null)
+            {
+                if (info.AvailableSlots == 0)
+                {
+                    detailsHandle.Release();
+                    CompleteOperation(onComplete, false, "Lobby is full.");
+                    return;
+                }
+            }
+
+            var matchAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = MatchStartedKey };
+            if (detailsHandle.CopyAttributeByKey(matchAttrOptions, out Epic.OnlineServices.Lobby.Attribute matchAttr) == Result.Success && matchAttr?.Data?.Value != null)
+            {
+                if (matchAttr.Data.Value.AsUtf8 == "true")
+                {
+                    detailsHandle.Release();
+                    CompleteOperation(onComplete, false, "Match has already started in this room.");
+                    return;
+                }
+            }
+
+            var codeAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = JoinCodeKey };
+            string joinCode = string.Empty;
+            if (detailsHandle.CopyAttributeByKey(codeAttrOptions, out Epic.OnlineServices.Lobby.Attribute codeAttr) == Result.Success && codeAttr?.Data?.Value != null)
+            {
+                joinCode = codeAttr.Data.Value.AsUtf8;
+            }
+
+            var hostAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = HostAddressKey };
+            string hostAddress = string.Empty;
+            if (detailsHandle.CopyAttributeByKey(hostAttrOptions, out Epic.OnlineServices.Lobby.Attribute hostAttr) == Result.Success && hostAttr?.Data?.Value != null)
+            {
+                hostAddress = hostAttr.Data.Value.AsUtf8;
+            }
+
+            var joinOptions = new JoinLobbyOptions
+            {
+                LobbyDetailsHandle = detailsHandle,
+                LocalUserId = _localProductUserId,
+                PresenceEnabled = false
+            };
+
+            _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle), HandleJoinLobbyCallback);
+        }
+
+        public void SendInvite(ProductUserId targetUserId, Action<bool, string> onComplete = null)
+        {
+            Assert.IsTrue(IsInLobby, "[LobbyManager] Cannot send invite: Not in a lobby.");
+            Assert.IsNotNull(targetUserId, "[LobbyManager] targetUserId must not be null.");
+
+            var options = new SendInviteOptions
+            {
+                LobbyId = CurrentLobbyId,
+                LocalUserId = _localProductUserId,
+                TargetUserId = targetUserId
+            };
+
+            _lobbyHandle.SendInvite(options, onComplete, HandleSendInviteCallback);
+        }
+
+        private void HandleSendInviteCallback(SendInviteCallbackInfo data)
+        {
+            var onComplete = data.ClientData as Action<bool, string>;
+            if (data.ResultCode != Result.Success)
+            {
+                CompleteOperation(onComplete, false, $"SendInvite failed: {data.ResultCode}");
+                return;
+            }
+
+            CompleteOperation(onComplete, true, null);
+        }
+
+        public void RejectInvite(string inviteId, Action<bool, string> onComplete = null)
+        {
+            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            Assert.IsNotNull(_localProductUserId, "[LobbyManager] LocalProductUserId must not be null.");
+            Assert.IsFalse(string.IsNullOrEmpty(inviteId), "[LobbyManager] inviteId must not be null or empty.");
+
+            var options = new RejectInviteOptions
+            {
+                InviteId = inviteId,
+                LocalUserId = _localProductUserId
+            };
+
+            _lobbyHandle.RejectInvite(options, onComplete, HandleRejectInviteCallback);
+        }
+
+        private void HandleRejectInviteCallback(RejectInviteCallbackInfo data)
+        {
+            var onComplete = data.ClientData as Action<bool, string>;
+            if (data.ResultCode != Result.Success)
+            {
+                CompleteOperation(onComplete, false, $"RejectInvite failed: {data.ResultCode}");
+                return;
+            }
+
+            CompleteOperation(onComplete, true, null);
         }
 
         /// <summary>
@@ -418,6 +540,85 @@ namespace EOS
             AreAllJoinersReady = false;
             _currentHostAddress = null;
             _hasGameStarted = false;
+        }
+
+        private void SubscribeToInviteNotifications()
+        {
+            if (_inviteNotificationId != Common.InvalidNotificationid) return;
+
+            var options = new AddNotifyLobbyInviteReceivedOptions();
+            _inviteNotificationId = _lobbyHandle.AddNotifyLobbyInviteReceived(options, this, OnLobbyInviteReceivedCallback);
+        }
+
+        private void UnsubscribeFromInviteNotifications()
+        {
+            if (_inviteNotificationId != Common.InvalidNotificationid)
+            {
+                _lobbyHandle.RemoveNotifyLobbyInviteReceived(_inviteNotificationId);
+                _inviteNotificationId = Common.InvalidNotificationid;
+            }
+        }
+
+        private static void OnLobbyInviteReceivedCallback(LobbyInviteReceivedCallbackInfo data)
+        {
+            var manager = data.ClientData as LobbyManager;
+            if (manager == null || string.IsNullOrEmpty(data.InviteId)) return;
+
+            var copyOptions = new CopyLobbyDetailsHandleByInviteIdOptions { InviteId = data.InviteId };
+            Result result = manager._lobbyHandle.CopyLobbyDetailsHandleByInviteId(copyOptions, out LobbyDetails detailsHandle);
+            if (result != Result.Success || detailsHandle == null) return;
+
+            var infoOptions = new LobbyDetailsCopyInfoOptions();
+            detailsHandle.CopyInfo(infoOptions, out LobbyDetailsInfo info);
+
+            var codeAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = JoinCodeKey };
+            string joinCode = string.Empty;
+            if (detailsHandle.CopyAttributeByKey(codeAttrOptions, out Epic.OnlineServices.Lobby.Attribute codeAttr) == Result.Success && codeAttr?.Data?.Value != null)
+            {
+                joinCode = codeAttr.Data.Value.AsUtf8;
+            }
+
+            var hostAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = HostAddressKey };
+            string hostAddress = string.Empty;
+            if (detailsHandle.CopyAttributeByKey(hostAttrOptions, out Epic.OnlineServices.Lobby.Attribute hostAttr) == Result.Success && hostAttr?.Data?.Value != null)
+            {
+                hostAddress = hostAttr.Data.Value.AsUtf8;
+            }
+
+            string hostName = string.Empty;
+            if (info?.LobbyOwnerUserId != null)
+            {
+                var memberAttrOptions = new LobbyDetailsCopyMemberAttributeByKeyOptions
+                {
+                    AttrKey = DisplayNameKey,
+                    TargetUserId = info.LobbyOwnerUserId
+                };
+                if (detailsHandle.CopyMemberAttributeByKey(memberAttrOptions, out Epic.OnlineServices.Lobby.Attribute nameAttr) == Result.Success && nameAttr?.Data?.Value != null)
+                {
+                    hostName = nameAttr.Data.Value.AsUtf8;
+                }
+            }
+
+            uint availableSlots = info?.AvailableSlots ?? 0;
+            uint maxMembers = info?.MaxMembers ?? 0;
+            string lobbyId = info?.LobbyId;
+            ProductUserId ownerUserId = info?.LobbyOwnerUserId;
+
+            detailsHandle.Release();
+
+            var callbackData = new LobbyInviteCallbackData
+            {
+                InviteId = data.InviteId,
+                LobbyId = lobbyId,
+                InviterUserId = ownerUserId,
+                InviterDisplayName = hostName,
+                JoinCode = joinCode,
+                HostAddress = hostAddress,
+                AvailableSlots = availableSlots,
+                MaxMembers = maxMembers
+            };
+
+            manager.OnLobbyInviteReceived?.Invoke(callbackData);
         }
 
         private void SubscribeToNotifications()
@@ -877,6 +1078,7 @@ namespace EOS
 
         public void Dispose()
         {
+            UnsubscribeFromInviteNotifications();
             LobbyPreferences.ClearInLobby(_localProductUserId);
             UnsubscribeFromNotifications();
 

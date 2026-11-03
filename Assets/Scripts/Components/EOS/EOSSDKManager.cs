@@ -19,7 +19,6 @@ namespace EOS
 
         public static EOSSDKManager Instance { get; private set; }
 
-        // can't we make this internal and will break after build 
         public static HAuthTicket SteamAuthTicket { get; set; } = HAuthTicket.Invalid;
         public static string LocalDisplayName { get; set; } = "Player";
 
@@ -36,6 +35,9 @@ namespace EOS
         public AuthManager AuthManager => _platformService?.AuthManager;
         public LobbyManager Lobby => _platformService?.Lobby;
         public PlayerDataStorageManager PlayerDataStorage => _platformService?.PlayerDataStorage;
+        public CrossPlayFriendsStore CrossPlayStore => _platformService?.CrossPlayStore;
+        public LobbyInviteManager LobbyInvites => _platformService?.LobbyInvites;
+        public FriendsManager Friends => _platformService?.Friends;
 
 #if UNITY_EDITOR
         private void OnValidate()
