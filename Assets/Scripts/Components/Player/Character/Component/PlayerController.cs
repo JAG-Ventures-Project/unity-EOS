@@ -39,14 +39,13 @@ namespace Minimap.FPC
         private Vector3 _netCoordinates;
         [SyncVar]
         private int _netLevel = 1;
-        [SyncVar]
-        [SerializeField] private List<long> _test = new List<long> { };
+        public readonly SyncList<long> _test = new SyncList<long>();
 
         public Vector3 NetVelocity => _netVelocity;
         public Vector3 NetCoordinates => _netCoordinates;
         public int NetLevel => _netLevel;
         public Color BodyColor => new Color(_netColor.x, _netColor.y, _netColor.z);
-        public List<long> Test => _test;
+        public SyncList<long> Test => _test;
         #endregion
 
 
@@ -68,7 +67,15 @@ namespace Minimap.FPC
             _jumpAction = _playerActionMap.FindAction("Jump", throwIfNotFound: true);
             _cameraLookAction = _playerActionMap.FindAction("Look", throwIfNotFound: true);
             this.enabled = false;
-            _test = new List<long>(100);
+        }
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+            for (int i = 0; i < 100; i++)
+            {
+                _test.Add(0);
+            }
         }
 
         public override void OnStartClient()
@@ -132,7 +139,6 @@ namespace Minimap.FPC
             {
                 _test[i] = BitConverter.ToInt64(_syncRandomBytes, i * 8);
             }
-            SetDirty();
         }
 
         /// <summary>
