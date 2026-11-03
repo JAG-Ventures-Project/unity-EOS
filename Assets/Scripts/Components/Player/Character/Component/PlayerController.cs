@@ -29,7 +29,7 @@ namespace Minimap.FPC
         private static readonly System.Random _syncRandom = new System.Random();
         private static readonly byte[] _syncRandomBytes = new byte[800];
 
-#region Synchronized State (SyncVars)
+        #region Synchronized State (SyncVars)
 
         [SyncVar(hook = nameof(OnColorChanged))]
         private Vector3 _netColor = Vector3.one;
@@ -40,14 +40,14 @@ namespace Minimap.FPC
         [SyncVar]
         private int _netLevel = 1;
         [SyncVar]
-        [SerializeField] private List<long> _test = new List<long>(100);
+        [SerializeField] private List<long> _test = new List<long> { };
 
         public Vector3 NetVelocity => _netVelocity;
         public Vector3 NetCoordinates => _netCoordinates;
         public int NetLevel => _netLevel;
         public Color BodyColor => new Color(_netColor.x, _netColor.y, _netColor.z);
         public List<long> Test => _test;
-#endregion
+        #endregion
 
 
 #if UNITY_EDITOR
@@ -68,8 +68,9 @@ namespace Minimap.FPC
             _jumpAction = _playerActionMap.FindAction("Jump", throwIfNotFound: true);
             _cameraLookAction = _playerActionMap.FindAction("Look", throwIfNotFound: true);
             this.enabled = false;
+            _test = new List<long>(100);
         }
-        
+
         public override void OnStartClient()
         {
             base.OnStartClient();
@@ -85,7 +86,7 @@ namespace Minimap.FPC
                 this.enabled = false;
             }
         }
-        
+
         public override void OnStartLocalPlayer()
         {
             base.OnStartLocalPlayer();
@@ -146,7 +147,7 @@ namespace Minimap.FPC
             _cameraController.InputsListener(_cameraRotationInput);
 
             // _playerPhysics.HandleRotation(_cameraController.HorizontalRotation);
-            CmdSendMovementInput(_moveInput, _cameraController.HorizontalRotation , _isSprinting);
+            CmdSendMovementInput(_moveInput, _cameraController.HorizontalRotation, _isSprinting);
         }
 
         [Command]
@@ -156,7 +157,7 @@ namespace Minimap.FPC
             _playerPhysics.HandleRotation(yaw);
             _playerPhysics.SetSprinting(isSprinting);
         }
-        
+
         [Command]
         private void CmdJump()
         {
