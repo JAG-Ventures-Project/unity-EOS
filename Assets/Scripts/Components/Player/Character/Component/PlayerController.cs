@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Assertions;
 using System;
+using System.Collections.Generic;
 
 namespace Minimap.FPC
 {
@@ -25,6 +26,8 @@ namespace Minimap.FPC
         private Vector2 _moveInput;
         private Vector2 _cameraRotationInput;
         private bool _isSprinting;
+        private static readonly System.Random _syncRandom = new System.Random();
+        private static readonly byte[] _syncRandomBytes = new byte[800];
 
 #region Synchronized State (SyncVars)
 
@@ -36,11 +39,14 @@ namespace Minimap.FPC
         private Vector3 _netCoordinates;
         [SyncVar]
         private int _netLevel = 1;
+        [SyncVar]
+        [SerializeField] private List<long> _test = new List<long>(100);
 
         public Vector3 NetVelocity => _netVelocity;
         public Vector3 NetCoordinates => _netCoordinates;
         public int NetLevel => _netLevel;
         public Color BodyColor => new Color(_netColor.x, _netColor.y, _netColor.z);
+        public List<long> Test => _test;
 #endregion
 
 
@@ -110,12 +116,6 @@ namespace Minimap.FPC
             Destroy(_cameraController.gameObject);
         }
 
-        private void OnDestroy()
-        {
-            Destroy(_playerVisual.gameObject);
-            Destroy(_cameraController.gameObject);
-        }
-
         void Update()
         {
             HandleInputs();
@@ -125,6 +125,13 @@ namespace Minimap.FPC
         {
             _netVelocity = velocity;
             _netCoordinates = new Vector3(position.x, position.z, position.y);
+
+            _syncRandom.NextBytes(_syncRandomBytes);
+            for (int i = 0; i < 100; i++)
+            {
+                _test[i] = BitConverter.ToInt64(_syncRandomBytes, i * 8);
+            }
+            SetDirty();
         }
 
         /// <summary>
@@ -149,24 +156,12 @@ namespace Minimap.FPC
             _playerPhysics.HandleRotation(yaw);
             _playerPhysics.SetSprinting(isSprinting);
         }
-
-
-        // public void Move()
-        // {
-        //     _playerPhysics.SetMoveInput(_moveInput);
-        // }
-
         
         [Command]
         private void CmdJump()
         {
             _playerPhysics.HandleJump();
         }
-
-        // public void Jump()
-        // {
-        //     _playerPhysics.HandleJump();
-        // }
 
         [Command]
         public void CmdRequestColorChange(Vector3 requestedRGB)
