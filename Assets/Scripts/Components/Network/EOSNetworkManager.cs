@@ -35,7 +35,6 @@ namespace EOS
         {
             base.Awake();
             TryGetComponent(out _eosTransport);
-            spawnPrefabs.Add(petPrefab);
         }    
 
 #region Lobby UI Connection Handlers

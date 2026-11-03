@@ -188,7 +188,10 @@ namespace Minimap.FPC
 
         private void OnColorChanged(Vector3 oldColor, Vector3 newColor)
         {
-            _playerVisual.SetColor(new Color(newColor.x, newColor.y, newColor.z));
+            if (_playerVisual != null)
+            {
+                _playerVisual.SetColor(new Color(newColor.x, newColor.y, newColor.z));
+            }
         }
 
 
