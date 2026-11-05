@@ -144,7 +144,7 @@ namespace EOS.UI.Analytics
                 "Open" => goodColor,
                 "Moderate" => mediumColor,
                 "Strict" => badColor,
-                _ => Color.white
+                _ => Color.black
             };
 
             p2pQueueText.text = $" {stats.incomingPacketsQueued} in / {stats.outgoingPacketsQueued} out";
