@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Assertions;
+using UnityEngine.InputSystem;
 using Minimap.FPC;
 
 namespace EOS
@@ -85,7 +86,6 @@ namespace EOS
 
             SetMenuOpen(false);
         }
-
         private void OnDestroy()
         {
             PlayerController.OnLocalPlayerSpawned -= OnLocalPlayerSpawned;
@@ -131,6 +131,7 @@ namespace EOS
         public void CloseMenu()
         {
             SetMenuOpen(false);
+            CursorManager.Instance?.SetCursorLocked(true);
             SaveToCloud();
             SyncToActiveEntities();
         }

@@ -16,7 +16,7 @@ namespace EOS
 
 #if UNITY_EDITOR
         [SerializeField] private UnityEditor.SceneAsset nextScene;
-        
+
         private void OnValidate()
         {
             nextSceneName = (nextScene != null) ? nextScene.name : "Lobby";

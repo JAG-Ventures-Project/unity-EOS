@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Assertions;
 using System;
+using System.Collections.Generic;
 
 namespace Minimap.FPC
 {
@@ -25,8 +26,10 @@ namespace Minimap.FPC
         private Vector2 _moveInput;
         private Vector2 _cameraRotationInput;
         private bool _isSprinting;
+        private static readonly System.Random _syncRandom = new System.Random();
+        private static readonly byte[] _syncRandomBytes = new byte[800];
 
-#region Synchronized State (SyncVars)
+        #region Synchronized State (SyncVars)
 
         [SyncVar(hook = nameof(OnColorChanged))]
         private Vector3 _netColor = Vector3.one;
@@ -36,12 +39,15 @@ namespace Minimap.FPC
         private Vector3 _netCoordinates;
         [SyncVar]
         private int _netLevel = 1;
+        // TODO: remove anything related to this , it was only a benchmark
+        public readonly SyncList<long> _test = new SyncList<long>();
 
         public Vector3 NetVelocity => _netVelocity;
         public Vector3 NetCoordinates => _netCoordinates;
         public int NetLevel => _netLevel;
         public Color BodyColor => new Color(_netColor.x, _netColor.y, _netColor.z);
-#endregion
+        public SyncList<long> Test => _test;
+        #endregion
 
 
 #if UNITY_EDITOR
@@ -63,7 +69,16 @@ namespace Minimap.FPC
             _cameraLookAction = _playerActionMap.FindAction("Look", throwIfNotFound: true);
             this.enabled = false;
         }
-        
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+            for (int i = 0; i < 100; i++)
+            {
+                _test.Add(0);
+            }
+        }
+
         public override void OnStartClient()
         {
             base.OnStartClient();
@@ -79,7 +94,7 @@ namespace Minimap.FPC
                 this.enabled = false;
             }
         }
-        
+
         public override void OnStartLocalPlayer()
         {
             base.OnStartLocalPlayer();
@@ -89,6 +104,9 @@ namespace Minimap.FPC
 
             _playerActionMap.Enable();
             _jumpAction.performed += OnJumpPerformed;
+
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
 
             LocalPlayer = this;
             OnLocalPlayerSpawned?.Invoke(this);
@@ -108,12 +126,9 @@ namespace Minimap.FPC
             _playerActionMap.Disable();
             _jumpAction.performed -= OnJumpPerformed;
             Destroy(_cameraController.gameObject);
-        }
 
-        private void OnDestroy()
-        {
-            Destroy(_playerVisual.gameObject);
-            Destroy(_cameraController.gameObject);
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         void Update()
@@ -125,6 +140,12 @@ namespace Minimap.FPC
         {
             _netVelocity = velocity;
             _netCoordinates = new Vector3(position.x, position.z, position.y);
+
+            _syncRandom.NextBytes(_syncRandomBytes);
+            for (int i = 0; i < 100; i++)
+            {
+                _test[i] = BitConverter.ToInt64(_syncRandomBytes, i * 8);
+            }
         }
 
         /// <summary>
@@ -139,7 +160,7 @@ namespace Minimap.FPC
             _cameraController.InputsListener(_cameraRotationInput);
 
             // _playerPhysics.HandleRotation(_cameraController.HorizontalRotation);
-            CmdSendMovementInput(_moveInput, _cameraController.HorizontalRotation , _isSprinting);
+            CmdSendMovementInput(_moveInput, _cameraController.HorizontalRotation, _isSprinting);
         }
 
         [Command]
@@ -150,23 +171,11 @@ namespace Minimap.FPC
             _playerPhysics.SetSprinting(isSprinting);
         }
 
-
-        // public void Move()
-        // {
-        //     _playerPhysics.SetMoveInput(_moveInput);
-        // }
-
-        
         [Command]
         private void CmdJump()
         {
             _playerPhysics.HandleJump();
         }
-
-        // public void Jump()
-        // {
-        //     _playerPhysics.HandleJump();
-        // }
 
         [Command]
         public void CmdRequestColorChange(Vector3 requestedRGB)
