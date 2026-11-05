@@ -97,30 +97,30 @@ namespace EOS.UI.Analytics
         private void UpdateDisplay(NetworkPerformanceStats stats)
         {
             // --- Responsiveness ---
-            inputResponsivenessText.text = $"Input Delay: {stats.inputResponsivenessMs:0.0} ms";
+            inputResponsivenessText.text = $"{stats.inputResponsivenessMs:0.0} ms";
             inputResponsivenessText.color = stats.inputResponsivenessMs < 50f
                 ? goodColor
                 : (stats.inputResponsivenessMs < 100f ? mediumColor : badColor);
 
-            simulationDelayText.text = $"Simulation Delay: {stats.simulationDelayMs:0.0} ms";
+            simulationDelayText.text = $" {stats.simulationDelayMs:0.0} ms";
             simulationDelayText.color = stats.simulationDelayMs < 20f ? goodColor : mediumColor;
 
-            timelineOffsetText.text = $"Clock Offset: {stats.timelineOffsetMs:0.0} ms";
+            timelineOffsetText.text = $"{stats.timelineOffsetMs:0.0} ms";
 
             // --- Network Stability ---
-            rttText.text = $"RTT (Ping): {stats.rttMs:0} ms";
+            rttText.text = $"{stats.rttMs:0} ms";
             rttText.color = stats.rttMs < 60f ? goodColor : (stats.rttMs < 120f ? mediumColor : badColor);
 
-            jitterText.text = $"Jitter: ±{stats.jitterMs:0.0} ms";
+            jitterText.text = $" ±{stats.jitterMs:0.0} ms";
             jitterText.color = stats.jitterMs < 5f ? goodColor : (stats.jitterMs < 15f ? mediumColor : badColor);
 
-            packetLossText.text = $"Packet Loss: {stats.packetLossPercent:0.0} %";
+            packetLossText.text = $" {stats.packetLossPercent:0.0} %";
             packetLossText.color = stats.packetLossPercent == 0f
                 ? goodColor
                 : (stats.packetLossPercent < 2f ? mediumColor : badColor);
 
             // --- EOS Route ---
-            natTypeText.text = $"NAT Route: {stats.natType}";
+            natTypeText.text = $" {stats.natType}";
             natTypeText.color = stats.natType switch
             {
                 "Open" => goodColor,
@@ -129,10 +129,10 @@ namespace EOS.UI.Analytics
                 _ => Color.white
             };
 
-            p2pQueueText.text = $"P2P Queues: {stats.incomingPacketsQueued} in / {stats.outgoingPacketsQueued} out";
+            p2pQueueText.text = $" {stats.incomingPacketsQueued} in / {stats.outgoingPacketsQueued} out";
 
             // --- Server Tick ---
-            serverSendRateText.text = $"Server Tick: {stats.serverSendRate} Hz";
+            serverSendRateText.text = $" {stats.serverSendRate} Hz";
         }
     }
 }

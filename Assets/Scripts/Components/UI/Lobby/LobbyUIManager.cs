@@ -15,19 +15,20 @@ namespace EOS
         [Header("Panels")]
         [SerializeField] private GameObject menuPanel;
         [SerializeField] private GameObject inLobbyPanel;
-        
+
         [Header("Menu View Controls")]
         [SerializeField] private Button createLobbyButton;
         [SerializeField] private TMP_InputField joinCodeInputField;
         [SerializeField] private Button joinLobbyButton;
         [SerializeField] private uint maxLobbyMembers = 4;
+        [SerializeField] private bool allowJoinInProgress = false;
 
         [Header("In-Lobby View Controls")]
         [SerializeField] private TextMeshProUGUI roomCodeText;
         [SerializeField] private Button copyCodeButton;
         [SerializeField] private TextMeshProUGUI memberCountText;
         [SerializeField] private Button leaveLobbyButton;
-        [SerializeField] private Button startGameButton; 
+        [SerializeField] private Button startGameButton;
 
         [Header("Player Cards")]
         [SerializeField] private LobbyPlayerCardUI playerCardPrefab;
@@ -35,12 +36,9 @@ namespace EOS
         [SerializeField] private List<Sprite> playerCardImages = new();
 
         [Header("Navigation")]
-        [SerializeField, HideInInspector] private string nextSceneName = "GameScene"; 
+        [SerializeField, HideInInspector] private string nextSceneName = "GameScene";
 
-        
         private ILobby _lobby;
-        private int _currentMemberCount;
-        private string _cachedHostAddress;
         private TextMeshProUGUI _actionButtonText;
         private bool _isLocalReady;
         private readonly List<LobbyPlayerCardUI> _cardPool = new();
@@ -48,7 +46,7 @@ namespace EOS
 
 #if UNITY_EDITOR
         [SerializeField] private UnityEditor.SceneAsset nextScene;
-        
+
         private void OnValidate()
         {
             nextSceneName = (nextScene != null) ? nextScene.name : "GameScene";
@@ -67,18 +65,18 @@ namespace EOS
             Assert.IsTrue(playerCardImages != null && playerCardImages.Count > 0, "[LobbyUIManager] playerCardImages list is empty! Please assign at least one image.");
         }
 #endif
-        
+
         private void Awake()
         {
             Assert.IsNotNull(EOSSDKManager.Instance, "[LobbyUIManager] EOSSDKManager.Instance is null!");
-            
+
             _lobby = EOSSDKManager.Instance.Lobby;
             Assert.IsNotNull(_lobby, "[LobbyUIManager] Failed to instantiate LobbyManager.");
-            
+
             _actionButtonText = startGameButton.GetComponentInChildren<TextMeshProUGUI>();
             SetPanelState(isInLobby: _lobby.IsInLobby);
             SetMenuButtonsInteractable(false);
-            
+
             createLobbyButton.onClick.AddListener(OnCreateLobbyButtonClicked);
             joinLobbyButton.onClick.AddListener(OnJoinLobbyButtonClicked);
             copyCodeButton.onClick.AddListener(OnCopyCodeButtonClicked);
@@ -108,6 +106,7 @@ namespace EOS
                 SetPanelState(isInLobby: false);
                 SetMenuButtonsInteractable(false);
                 _lobby.CheckAndCleanOrphanLobbyOnLogin(HandleOrphanCleanupComplete);
+                _lobby.AllowJoinInProgress = allowJoinInProgress;
             }
         }
 
@@ -120,7 +119,6 @@ namespace EOS
         private void RestoreInLobbyUI()
         {
             _isLocalReady = false;
-            _currentMemberCount = _lobby.CurrentMemberCount;
             roomCodeText.text = _lobby.CurrentJoinCode;
             UpdateMemberCountDisplay();
 
@@ -149,7 +147,7 @@ namespace EOS
                 Debug.LogWarning($"[LobbyUIManager] Failed to reset ready status upon returning: {error}");
             }
         }
-        
+
         private void OnDestroy()
         {
             if (_lobby != null)
@@ -173,13 +171,13 @@ namespace EOS
                 }
             }
         }
-        
+
         private void OnCreateLobbyButtonClicked()
         {
             SetMenuButtonsInteractable(false);
             _lobby.CreateLobby(maxLobbyMembers);
         }
-        
+
         private void OnJoinLobbyButtonClicked()
         {
             string code = joinCodeInputField.text;
@@ -191,20 +189,20 @@ namespace EOS
             SetMenuButtonsInteractable(false);
             _lobby.JoinLobbyByCode(code);
         }
-        
+
         // AI Implementation
         private void OnCopyCodeButtonClicked()
         {
             if (string.IsNullOrEmpty(_lobby.CurrentJoinCode)) return;
             GUIUtility.systemCopyBuffer = _lobby.CurrentJoinCode;
         }
-        
+
         private void OnLeaveLobbyButtonClicked()
         {
             SetLobbyButtonsInteractable(false);
             _lobby.LeaveLobby();
         }
-        
+
         private void OnActionButtonClicked()
         {
             if (_lobby.IsLobbyOwner)
@@ -263,19 +261,17 @@ namespace EOS
                 NotificationManager.Show($"Failed to start match: {error}", NotificationType.Error);
             }
         }
-        
+
         private void HandleOnGameStarted(string hostAddress)
         {
             SetLobbyButtonsInteractable(false);
             NotificationManager.Show("Match is starting...", NotificationType.Normal);
-            string address = !string.IsNullOrEmpty(hostAddress) ? hostAddress : _cachedHostAddress;
-            EOSNetworkManager.Instance.StartEosClient(address);
+            EOSNetworkManager.Instance.StartEosClient(hostAddress);
         }
-        
+
         private void HandleOnLobbyCreated(string shortCode)
         {
             _isLocalReady = false;
-            _currentMemberCount = _lobby.CurrentMemberCount;
             roomCodeText.text = shortCode;
             UpdateMemberCountDisplay();
             UpdateActionButtonsDisplay();
@@ -283,18 +279,15 @@ namespace EOS
             DeactivateAllCards();
             AddPlayerCard(_lobby.LocalProductUserId);
         }
-        
+
         private void HandleOnLobbyJoined(string hostAddress)
         {
-            _cachedHostAddress = hostAddress;
             _isLocalReady = false;
-            _currentMemberCount = _lobby.CurrentMemberCount;
             roomCodeText.text = _lobby.CurrentJoinCode;
             UpdateMemberCountDisplay();
             UpdateActionButtonsDisplay();
             SetPanelState(isInLobby: true);
             SyncPlayerCards();
-            _lobby.SetLocalMemberDisplayName(EOSSDKManager.LocalDisplayName);
         }
 
         private void UpdateActionButtonsDisplay()
@@ -321,16 +314,10 @@ namespace EOS
             {
                 startGameButton.interactable = allReady;
             }
-
-            foreach (var card in _activePlayerCards.Values)
-            {
-                card.SetReady(_lobby.IsMemberReady(card.UserId));
-            }
         }
-        
+
         private void HandleOnLobbyLeft()
         {
-            _cachedHostAddress = null;
             _isLocalReady = false;
             DeactivateAllCards();
             SetPanelState(isInLobby: false);
@@ -339,23 +326,21 @@ namespace EOS
             joinCodeInputField.text = string.Empty;
             EOSNetworkManager.Instance.StopNetwork();
         }
-        
+
         private void HandleOnPlayerJoined(ProductUserId userId)
         {
-            _currentMemberCount = _lobby.CurrentMemberCount;
             UpdateMemberCountDisplay();
             AddPlayerCard(userId);
             NotificationManager.Show("A player joined the room.", NotificationType.Normal);
         }
-        
+
         private void HandleOnPlayerLeft(ProductUserId userId)
         {
-            _currentMemberCount = _lobby.CurrentMemberCount;
             UpdateMemberCountDisplay();
             RemovePlayerCard(userId);
             NotificationManager.Show("A player left the room.", NotificationType.Normal);
         }
-        
+
         private void HandleOnLobbyError(string errorMessage)
         {
             SetMenuButtonsInteractable(true);
@@ -363,13 +348,13 @@ namespace EOS
             Debug.LogError($"[LobbyUIManager] {errorMessage}");
             NotificationManager.Show(errorMessage, NotificationType.Error);
         }
-        
+
         private void SetPanelState(bool isInLobby)
         {
             menuPanel.SetActive(!isInLobby);
             inLobbyPanel.SetActive(isInLobby);
         }
-        
+
         private void SetMenuButtonsInteractable(bool interactable)
         {
             createLobbyButton.interactable = interactable;
@@ -382,12 +367,12 @@ namespace EOS
             leaveLobbyButton.interactable = interactable;
             startGameButton.interactable = interactable;
         }
-        
+
         private void UpdateMemberCountDisplay()
         {
-            if (memberCountText != null)
+            if (memberCountText != null && _lobby != null)
             {
-                memberCountText.text = $"{_currentMemberCount} / {maxLobbyMembers}";
+                memberCountText.text = $"{_lobby.CurrentMemberCount} / {maxLobbyMembers}";
             }
         }
 

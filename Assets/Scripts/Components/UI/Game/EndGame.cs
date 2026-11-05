@@ -2,7 +2,6 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Assertions;
-using UnityEngine.SceneManagement;
 using Mirror;
 
 namespace EOS
@@ -10,16 +9,12 @@ namespace EOS
     public class EndGame : MonoBehaviour
     {
         [SerializeField] private Button endGameButton;
-        [SerializeField, HideInInspector] private string nextSceneName = "Lobby";
 
         private ILobby _lobby;
 
 #if UNITY_EDITOR
-        [SerializeField] private UnityEditor.SceneAsset nextScene;
-
         private void OnValidate()
         {
-            nextSceneName = (nextScene != null) ? nextScene.name : "Lobby";
             Assert.IsNotNull(endGameButton, "[EndGame] endGameButton is null! Please assign in inspector.");
         }
 #endif
