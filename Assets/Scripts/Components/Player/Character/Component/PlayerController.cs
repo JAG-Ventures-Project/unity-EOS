@@ -39,6 +39,7 @@ namespace Minimap.FPC
         private Vector3 _netCoordinates;
         [SyncVar]
         private int _netLevel = 1;
+        // TODO: remove anything related to this , it was only a benchmark
         public readonly SyncList<long> _test = new SyncList<long>();
 
         public Vector3 NetVelocity => _netVelocity;

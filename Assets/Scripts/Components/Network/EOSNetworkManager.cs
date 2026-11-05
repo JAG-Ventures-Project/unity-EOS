@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.Assertions;
 using EpicTransport;
 using Minimap.FPC;
+using Epic.OnlineServices;
 
 namespace EOS
 {
@@ -122,16 +123,35 @@ namespace EOS
             GameObject playerInstance = startPos != null
                 ? Instantiate(playerPrefab, startPos.position, startPos.rotation)
                 : Instantiate(playerPrefab);
-            playerInstance.name = $"{playerPrefab.name} [ConnId={conn.connectionId}]";
+            
+            string playerName = GetPlayerDisplayName(conn);
+            playerInstance.name = $"{playerPrefab.name} [{playerName}]";
             NetworkServer.AddPlayerForConnection(conn, playerInstance);
 
             Vector3 spawnOffset = playerInstance.transform.position + Vector3.right * 1.5f;
             GameObject petInstance = Instantiate(petPrefab, spawnOffset, Quaternion.identity);
-            petInstance.name = $"{petPrefab.name} [Owner={conn.connectionId}]";
+            petInstance.name = $"{petPrefab.name} [{playerName}]";
             petInstance.TryGetComponent(out PetController petController);
             petController.SetOwner(playerInstance.transform);
             NetworkServer.Spawn(petInstance, conn);
             _spawnedPets[conn] = petInstance;
+        }
+
+        public string GetPlayerDisplayName(NetworkConnectionToClient conn)
+        {
+            // Host player: use local display name (from Epic, Steam, or custom input field)
+            if (conn is LocalConnectionToClient || conn.connectionId == 0)
+            {
+                return !string.IsNullOrWhiteSpace(EOSSDKManager.LocalDisplayName)
+                    ? EOSSDKManager.LocalDisplayName
+                    : "Host";
+            }
+
+            // Remote client: resolve via EOS Lobby using conn.address (ProductUserId)
+            var lobby = EOSSDKManager.Instance?.Lobby;
+            ProductUserId userId = ProductUserId.FromString(conn.address);
+            string memberName = lobby.GetMemberDisplayName(userId);
+            return memberName;
         }
 
         

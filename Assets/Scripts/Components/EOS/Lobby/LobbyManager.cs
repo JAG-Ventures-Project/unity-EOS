@@ -257,6 +257,14 @@ namespace EOS
             };
             searchHandle.SetParameter(paramOptions);
 
+            // Filter search by MATCH_STARTED == "false" so backend excludes matches that have already started
+            var matchParamOptions = new LobbySearchSetParameterOptions
+            {
+                Parameter = new AttributeData { Key = MatchStartedKey, Value = "false" },
+                ComparisonOp = ComparisonOp.Equal
+            };
+            searchHandle.SetParameter(matchParamOptions);
+
             var findOptions = new LobbySearchFindOptions { LocalUserId = _localProductUserId };
             searchHandle.Find(findOptions, (searchHandle, onComplete, formattedCode), HandleFindLobbiesCallback);
         }
@@ -572,6 +580,14 @@ namespace EOS
                 return;
             }
 
+            // Lock the lobby permissions to Inviteonly so it is no longer publicly advertised or searchable
+            var permissionOptions = new LobbyModificationSetPermissionLevelOptions
+            {
+                PermissionLevel = LobbyPermissionLevel.Inviteonly
+            };
+            modHandle.SetPermissionLevel(permissionOptions);
+
+            // Mark MATCH_STARTED as true
             var startAttr = new AttributeData { Key = MatchStartedKey, Value = "true" };
             var startOptions = new LobbyModificationAddAttributeOptions
             {
@@ -651,6 +667,14 @@ namespace EOS
                 return;
             }
 
+            // Restore lobby to Publicadvertised so it can be searched/joined again
+            var permissionOptions = new LobbyModificationSetPermissionLevelOptions
+            {
+                PermissionLevel = LobbyPermissionLevel.Publicadvertised
+            };
+            modHandle.SetPermissionLevel(permissionOptions);
+
+            // Mark MATCH_STARTED as false
             var matchStartedAttr = new AttributeData { Key = MatchStartedKey, Value = "false" };
             var matchStartedOptions = new LobbyModificationAddAttributeOptions
             {
