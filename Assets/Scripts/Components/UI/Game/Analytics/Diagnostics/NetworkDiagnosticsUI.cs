@@ -60,15 +60,32 @@ namespace EOS.UI.Analytics
 
         private void OnEnable()
         {
-            NetworkDiagnosticsManager.Instance.OnStatsUpdated += HandleStatsUpdated;
-            NetworkDiagnosticsManager.Instance.SetProbingActive(true);
-            UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+            if (NetworkDiagnosticsManager.Instance != null)
+            {
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated += HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.SetProbingActive(true);
+                UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+            }
+        }
+
+        private void Start()
+        {
+            if (NetworkDiagnosticsManager.Instance != null)
+            {
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated += HandleStatsUpdated;
+                UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+            }
         }
 
         private void OnDisable()
         {
-            NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
-            NetworkDiagnosticsManager.Instance.SetProbingActive(false);
+            if (NetworkDiagnosticsManager.Instance != null)
+            {
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.SetProbingActive(false);
+            }
         }
 
         public void SetMenuOpen(bool open)
@@ -76,13 +93,14 @@ namespace EOS.UI.Analytics
             if (_isOpen == open) return;
             _isOpen = open;
 
-            gameObject.SetActive(open);
-
-            NetworkDiagnosticsManager.Instance.SetProbingActive(open);
-
-            if (open)
+            if (NetworkDiagnosticsManager.Instance != null)
             {
-                UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+                NetworkDiagnosticsManager.Instance.SetProbingActive(open);
+
+                if (open)
+                {
+                    UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+                }
             }
         }
 

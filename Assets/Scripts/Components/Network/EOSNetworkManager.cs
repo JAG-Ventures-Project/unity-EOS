@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
 using UnityEngine.Assertions;
+using UnityEngine.SceneManagement;
 using EpicTransport;
 using Minimap.FPC;
 using Epic.OnlineServices;
@@ -62,6 +63,21 @@ namespace EOS
             else if (NetworkClient.isConnected)
             {
                 StopClient();
+            }
+            else
+            {
+                if (NetworkServer.active)
+                {
+                    StopServer();
+                }
+                if (NetworkClient.active)
+                {
+                    StopClient();
+                }
+                else if (!string.IsNullOrEmpty(offlineScene) && SceneManager.GetActiveScene().name != offlineScene)
+                {
+                    SceneManager.LoadScene(offlineScene);
+                }
             }
         }
 

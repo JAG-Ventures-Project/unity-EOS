@@ -34,15 +34,31 @@ namespace EOS
         {
             endGameButton.interactable = false;
 
+            var lobby = _lobby ?? EOSSDKManager.Instance?.Lobby;
+
             // Host/Server check: host resets the match state in EOS lobby and brings all players back
             if (NetworkServer.active)
             {
-                _lobby.ResetMatchState(HandleHostResetMatchCallback);
+                if (lobby != null)
+                {
+                    lobby.ResetMatchState(HandleHostResetMatchCallback);
+                }
+                else
+                {
+                    EOSNetworkManager.Instance?.StopNetwork();
+                }
             }
             else
             {
                 // Client: leave the old EOS lobby and stop Mirror client
-                _lobby.LeaveLobby(HandleClientLeaveLobbyCallback);
+                if (lobby != null && lobby.IsInLobby)
+                {
+                    lobby.LeaveLobby(HandleClientLeaveLobbyCallback);
+                }
+                else
+                {
+                    EOSNetworkManager.Instance?.StopNetwork();
+                }
             }
         }
 

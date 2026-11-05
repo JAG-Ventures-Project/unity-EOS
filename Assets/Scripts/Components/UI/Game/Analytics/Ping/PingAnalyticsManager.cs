@@ -15,7 +15,19 @@ namespace EOS.UI.Analytics
     [DisallowMultipleComponent]
     public class PingAnalyticsManager : MonoBehaviour
     {
-        public static PingAnalyticsManager Instance { get; private set; }
+        private static PingAnalyticsManager _instance;
+        public static PingAnalyticsManager Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = FindObjectOfType<PingAnalyticsManager>();
+                }
+                return _instance;
+            }
+            private set => _instance = value;
+        }
 
         [Header("Settings")]
         [Tooltip("Interval in seconds between ping broadcasts from host to clients.")]
@@ -33,11 +45,11 @@ namespace EOS.UI.Analytics
 
         private void Awake()
         {
-            if (Instance == null)
+            if (_instance == null)
             {
-                Instance = this;
+                _instance = this;
             }
-            else if (Instance != this)
+            else if (_instance != this)
             {
                 Destroy(gameObject);
             }
@@ -46,12 +58,14 @@ namespace EOS.UI.Analytics
         private void OnEnable()
         {
             RegisterHandlers();
+            NetworkClient.OnConnectedEvent += HandleClientConnected;
             NetworkClient.OnDisconnectedEvent += HandleClientDisconnected;
         }
 
         private void OnDisable()
         {
             UnregisterHandlers();
+            NetworkClient.OnConnectedEvent -= HandleClientConnected;
             NetworkClient.OnDisconnectedEvent -= HandleClientDisconnected;
 
             StopBroadcastRoutine();
@@ -67,6 +81,7 @@ namespace EOS.UI.Analytics
             if (NetworkServer.active)
             {
                 StartBroadcastRoutine();
+                BroadcastPingList();
             }
         }
 
@@ -75,11 +90,7 @@ namespace EOS.UI.Analytics
         private void RegisterHandlers()
         {
             NetworkClient.ReplaceHandler<PlayersPingListMessage>(OnClientReceivePingList, false);
-
-            if (NetworkServer.active)
-            {
-                NetworkServer.ReplaceHandler<RegisterPlayerNameMessage>(OnServerReceiveRegisterName, false);
-            }
+            NetworkServer.ReplaceHandler<RegisterPlayerNameMessage>(OnServerReceiveRegisterName, false);
         }
 
         private void UnregisterHandlers()
@@ -145,9 +156,8 @@ namespace EOS.UI.Analytics
 
             _playerNames[conn.connectionId] = sanitizedName;
 
-            // Send initial ping list to this newly registered connection
-            List<PlayerPingData> currentPings = CollectActivePings();
-            conn.Send(new PlayersPingListMessage { players = currentPings.ToArray() });
+            // Broadcast full list so host and all clients immediately have this player
+            BroadcastPingList();
         }
 
         public List<PlayerPingData> CollectActivePings()
@@ -205,12 +215,20 @@ namespace EOS.UI.Analytics
 
         #region Client-Side Logic
 
+        private void HandleClientConnected()
+        {
+            SendClientRegisterName();
+        }
+
         private void SendClientRegisterName()
         {
-            NetworkClient.Send(new RegisterPlayerNameMessage
+            if (NetworkClient.isConnected)
             {
-                playerName = EOSSDKManager.LocalDisplayName
-            });
+                NetworkClient.Send(new RegisterPlayerNameMessage
+                {
+                    playerName = EOSSDKManager.LocalDisplayName
+                });
+            }
         }
 
         private void OnClientReceivePingList(PlayersPingListMessage msg)

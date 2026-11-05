@@ -55,6 +55,7 @@ namespace EOS.UI.Analytics
 
         private void OnEnable()
         {
+            tabAction.action.started += OnTabStarted;
             tabAction.action.performed += OnTabPerformed;
             if (holdToOpen)
             {
@@ -65,6 +66,7 @@ namespace EOS.UI.Analytics
 
         private void OnDisable()
         {
+            tabAction.action.started -= OnTabStarted;
             tabAction.action.performed -= OnTabPerformed;
             if (holdToOpen)
             {
@@ -75,6 +77,14 @@ namespace EOS.UI.Analytics
             if (IsMenuOpen)
             {
                 SetMenuOpen(false);
+            }
+        }
+
+        private void OnTabStarted(InputAction.CallbackContext ctx)
+        {
+            if (holdToOpen)
+            {
+                SetMenuOpen(true);
             }
         }
 

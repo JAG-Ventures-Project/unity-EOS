@@ -36,7 +36,19 @@ namespace EOS.UI.Analytics
     [DisallowMultipleComponent]
     public class NetworkDiagnosticsManager : MonoBehaviour
     {
-        public static NetworkDiagnosticsManager Instance { get; private set; }
+        private static NetworkDiagnosticsManager _instance;
+        public static NetworkDiagnosticsManager Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = FindObjectOfType<NetworkDiagnosticsManager>();
+                }
+                return _instance;
+            }
+            private set => _instance = value;
+        }
 
         [Header("Probe Settings")]
         [SerializeField] private float probeInterval = 0.5f;
@@ -61,11 +73,11 @@ namespace EOS.UI.Analytics
 
         private void Awake()
         {
-            if (Instance == null)
+            if (_instance == null)
             {
-                Instance = this;
+                _instance = this;
             }
-            else if (Instance != this)
+            else if (_instance != this)
             {
                 Destroy(gameObject);
                 return;
@@ -225,11 +237,7 @@ namespace EOS.UI.Analytics
         private void RegisterHandlers()
         {
             NetworkClient.ReplaceHandler<InputProbeAckMessage>(OnClientReceiveProbeAck, false);
-
-            if (NetworkServer.active)
-            {
-                NetworkServer.ReplaceHandler<InputProbeMessage>(OnServerReceiveProbe, false);
-            }
+            NetworkServer.ReplaceHandler<InputProbeMessage>(OnServerReceiveProbe, false);
         }
 
         private void UnregisterHandlers()

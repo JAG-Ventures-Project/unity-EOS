@@ -31,13 +31,30 @@ namespace EOS.UI.Analytics
 
         private void OnEnable()
         {
-            PingAnalyticsManager.Instance.OnPingsUpdated += HandlePingsUpdated;
-            RefreshRows(PingAnalyticsManager.Instance.LatestPings);
+            if (PingAnalyticsManager.Instance != null)
+            {
+                PingAnalyticsManager.Instance.OnPingsUpdated -= HandlePingsUpdated;
+                PingAnalyticsManager.Instance.OnPingsUpdated += HandlePingsUpdated;
+                RefreshRows(PingAnalyticsManager.Instance.LatestPings);
+            }
+        }
+
+        private void Start()
+        {
+            if (PingAnalyticsManager.Instance != null)
+            {
+                PingAnalyticsManager.Instance.OnPingsUpdated -= HandlePingsUpdated;
+                PingAnalyticsManager.Instance.OnPingsUpdated += HandlePingsUpdated;
+                RefreshRows(PingAnalyticsManager.Instance.LatestPings);
+            }
         }
 
         private void OnDisable()
         {
-            PingAnalyticsManager.Instance.OnPingsUpdated -= HandlePingsUpdated;
+            if (PingAnalyticsManager.Instance != null)
+            {
+                PingAnalyticsManager.Instance.OnPingsUpdated -= HandlePingsUpdated;
+            }
         }
 
         public void SetMenuOpen(bool open)
@@ -45,7 +62,7 @@ namespace EOS.UI.Analytics
             if (_isOpen == open) return;
             _isOpen = open;
 
-            if (open)
+            if (open && PingAnalyticsManager.Instance != null)
             {
                 RefreshRows(PingAnalyticsManager.Instance.LatestPings);
             }
@@ -61,21 +78,25 @@ namespace EOS.UI.Analytics
 
         private void RefreshRows(IReadOnlyList<PlayerPingData> pings)
         {
-            if (pings == null || pings.Count == 0 || pingRowPrefab == null || pingListParent == null) return;
+            if (pingRowPrefab == null || pingListParent == null) return;
 
-            // Instantiate rows once for the players connected
-            if (_rowPool.Count == 0)
+            int count = pings != null ? pings.Count : 0;
+
+            while (_rowPool.Count < count)
             {
-                for (int i = 0; i < pings.Count; i++)
-                {
-                    _rowPool.Add(Instantiate(pingRowPrefab, pingListParent));
-                }
+                var row = Instantiate(pingRowPrefab, pingListParent);
+                _rowPool.Add(row);
             }
 
-            // Update row data
-            for (int i = 0; i < _rowPool.Count && i < pings.Count; i++)
+            for (int i = 0; i < count; i++)
             {
+                _rowPool[i].gameObject.SetActive(true);
                 _rowPool[i].SetData(pings[i].playerName, pings[i].pingMs);
+            }
+
+            for (int i = count; i < _rowPool.Count; i++)
+            {
+                _rowPool[i].gameObject.SetActive(false);
             }
         }
     }

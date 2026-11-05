@@ -16,6 +16,7 @@ namespace Minimap.FPC
         public static event Action<PlayerController> OnLocalPlayerSpawned;
         [SerializeField] private CameraController _cameraController;
         [SerializeField] private PlayerVisual _playerVisual;
+        private PlayerVisual _instantiatedVisual;
         private PlayerInput input;
         private IPlayerPhysics _playerPhysics;
         private InputActionMap _playerActionMap;
@@ -82,8 +83,9 @@ namespace Minimap.FPC
         public override void OnStartClient()
         {
             base.OnStartClient();
-            _playerVisual = Instantiate(_playerVisual);
-            _playerVisual.Initialize(transform);
+            _instantiatedVisual = Instantiate(_playerVisual);
+            _instantiatedVisual.Initialize(transform);
+            _instantiatedVisual.SetColor(BodyColor);
 
             if (!isServer)
             {
@@ -115,7 +117,11 @@ namespace Minimap.FPC
         public override void OnStopClient()
         {
             base.OnStopClient();
-            Destroy(_playerVisual.gameObject);
+            if (_instantiatedVisual != null)
+            {
+                Destroy(_instantiatedVisual.gameObject);
+                _instantiatedVisual = null;
+            }
         }
 
         public override void OnStopLocalPlayer()
@@ -156,7 +162,7 @@ namespace Minimap.FPC
             _moveInput = _moveAction.ReadValue<Vector2>();
             _isSprinting = _sprintAction.IsPressed();
 
-            _cameraRotationInput = _cameraLookAction.ReadValue<Vector2>();
+            _cameraRotationInput = CursorManager.IsLocked ? _cameraLookAction.ReadValue<Vector2>() : Vector2.zero;
             _cameraController.InputsListener(_cameraRotationInput);
 
             // _playerPhysics.HandleRotation(_cameraController.HorizontalRotation);
@@ -189,9 +195,9 @@ namespace Minimap.FPC
 
         private void OnColorChanged(Vector3 oldColor, Vector3 newColor)
         {
-            if (_playerVisual != null)
+            if (_instantiatedVisual != null)
             {
-                _playerVisual.SetColor(new Color(newColor.x, newColor.y, newColor.z));
+                _instantiatedVisual.SetColor(new Color(newColor.x, newColor.y, newColor.z));
             }
         }
 
