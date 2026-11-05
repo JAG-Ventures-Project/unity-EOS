@@ -2759,6 +2759,7 @@ MonoBehaviour:
   joinCodeInputField: {fileID: 1791028932}
   joinLobbyButton: {fileID: 276464490}
   maxLobbyMembers: 4
+  allowJoinInProgress: 1
   roomCodeText: {fileID: 1398514124}
   copyCodeButton: {fileID: 1114187495}
   memberCountText: {fileID: 1588868353}

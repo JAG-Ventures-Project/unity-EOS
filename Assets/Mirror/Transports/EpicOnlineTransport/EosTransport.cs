@@ -176,6 +176,7 @@ namespace EpicTransport {
         public override void ClientDisconnect() {
             if (ClientActive()) {
                 Shutdown();
+                OnClientDisconnected?.Invoke();
             }
         }
         public bool ClientActive() => client != null;

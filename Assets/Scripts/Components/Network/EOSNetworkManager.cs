@@ -60,24 +60,25 @@ namespace EOS
             {
                 StopHost();
             }
-            else if (NetworkClient.isConnected)
-            {
-                StopClient();
-            }
             else
             {
+                if (NetworkClient.active || NetworkClient.isConnected)
+                {
+                    StopClient();
+                }
                 if (NetworkServer.active)
                 {
                     StopServer();
                 }
-                if (NetworkClient.active)
-                {
-                    StopClient();
-                }
-                else if (!string.IsNullOrEmpty(offlineScene) && SceneManager.GetActiveScene().name != offlineScene)
-                {
-                    SceneManager.LoadScene(offlineScene);
-                }
+            }
+
+            string targetScene = !string.IsNullOrEmpty(offlineScene) ? offlineScene : "Lobby";
+            string currentScene = SceneManager.GetActiveScene().name;
+            string targetSceneName = System.IO.Path.GetFileNameWithoutExtension(targetScene);
+
+            if (currentScene != targetScene && currentScene != targetSceneName)
+            {
+                SceneManager.LoadScene(targetScene);
             }
         }
 
