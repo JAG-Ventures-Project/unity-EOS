@@ -2,7 +2,6 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Assertions;
-using UnityEngine.SceneManagement;
 using Mirror;
 
 namespace EOS
@@ -10,16 +9,12 @@ namespace EOS
     public class EndGame : MonoBehaviour
     {
         [SerializeField] private Button endGameButton;
-        [SerializeField, HideInInspector] private string nextSceneName = "Lobby";
 
         private ILobby _lobby;
 
 #if UNITY_EDITOR
-        [SerializeField] private UnityEditor.SceneAsset nextScene;
-
         private void OnValidate()
         {
-            nextSceneName = (nextScene != null) ? nextScene.name : "Lobby";
             Assert.IsNotNull(endGameButton, "[EndGame] endGameButton is null! Please assign in inspector.");
         }
 #endif
@@ -27,7 +22,7 @@ namespace EOS
         private void Awake()
         {
             endGameButton.onClick.AddListener(OnEndGameButtonClicked);
-            _lobby = EOSSDKManager.Instance?.Lobby;
+            _lobby = LobbyManager.Instance;
         }
 
         private void OnDestroy()
@@ -39,15 +34,31 @@ namespace EOS
         {
             endGameButton.interactable = false;
 
+            var lobby = _lobby ?? LobbyManager.Instance;
+
             // Host/Server check: host resets the match state in EOS lobby and brings all players back
             if (NetworkServer.active)
             {
-                _lobby.ResetMatchState(HandleHostResetMatchCallback);
+                if (lobby != null)
+                {
+                    lobby.ResetMatchState(HandleHostResetMatchCallback);
+                }
+                else
+                {
+                    EOSNetworkManager.Instance?.StopNetwork();
+                }
             }
             else
             {
                 // Client: leave the old EOS lobby and stop Mirror client
-                _lobby.LeaveLobby(HandleClientLeaveLobbyCallback);
+                if (lobby != null && lobby.IsInLobby)
+                {
+                    lobby.LeaveLobby(HandleClientLeaveLobbyCallback);
+                }
+                else
+                {
+                    EOSNetworkManager.Instance?.StopNetwork();
+                }
             }
         }
 

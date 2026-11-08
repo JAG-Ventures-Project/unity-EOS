@@ -8,13 +8,21 @@ namespace EOS
 {
     public class ConnectManager
     {
+        private static ConnectManager _instance;
+        public static ConnectManager Instance => _instance ??=
+            (EpicTransport.EOSSDKComponent.PlatformInterface != null
+                ? new ConnectManager(EpicTransport.EOSSDKComponent.PlatformInterface)
+                : null);
+
         public ProductUserId LocalProductUserId { get; private set; } = null;
         public bool IsLoggedIn => LocalProductUserId != null;
         private readonly ConnectInterface _connectInterface;
 
-        public ConnectManager(PlatformInterface platformInterface)
+        public ConnectManager(PlatformInterface platformInterface = null)
         {
-            _connectInterface = platformInterface.GetConnectInterface();
+            var platform = platformInterface ?? EpicTransport.EOSSDKComponent.PlatformInterface;
+            _connectInterface = platform?.GetConnectInterface();
+            EpicTransport.EOSSDKComponent.OnShutdown += () => _instance = null;
         }
 
         /// <summary>

@@ -36,8 +36,8 @@ namespace EOS
 #endif
         private void Awake() {
             Assert.IsNotNull(EOSSDKManager.Instance, "[EOSLoginManager] EOSSDKManager.Instance is null! Make sure EOSSDKManager is on a GameObject in the scene and active.");
-            Assert.IsNotNull(EOSSDKManager.Instance.ConnectManager, "[EOSLoginManager] ConnectManager is null! Check if EOSSDKManager initialized successfully.");
-            Assert.IsNotNull(EOSSDKManager.Instance.AuthManager, "[EOSLoginManager] AuthManager is null! Check if EOSSDKManager initialized successfully.");
+            Assert.IsNotNull(ConnectManager.Instance, "[EOSLoginManager] ConnectManager is null! Check if EOSSDKManager initialized successfully.");
+            Assert.IsNotNull(AuthManager.Instance, "[EOSLoginManager] AuthManager is null! Check if EOSSDKManager initialized successfully.");
             
             playerName.text = AuthPreferences.LastGuestName;
             rememberAccountToggle.SetIsOnWithoutNotify(AuthPreferences.LastLoginProvider != LoginProvider.None);
@@ -91,7 +91,7 @@ namespace EOS
                                 : playerName.text.Trim();
 
             SetButtonsInteractable(false);
-            EOSSDKManager.Instance.ConnectManager.LoginAsGuest(displayName, (success, error) =>
+            ConnectManager.Instance.LoginAsGuest(displayName, (success, error) =>
             {
                 if (success)
                 {
@@ -122,7 +122,7 @@ namespace EOS
         {
             SetButtonsInteractable(false);
 
-            EOSSDKManager.Instance.AuthManager.LoginWithPersistentAuth(fallbackToAccountPortal: false, (authSuccess, authError) =>
+            AuthManager.Instance.LoginWithPersistentAuth(fallbackToAccountPortal: false, (authSuccess, authError) =>
             {
                 if (!authSuccess)
                 {
@@ -139,9 +139,9 @@ namespace EOS
         {
             SetButtonsInteractable(false);
 
-            EOSSDKManager.Instance.AuthManager.IsRememberMe = rememberAccountToggle.isOn;
+            AuthManager.Instance.IsRememberMe = rememberAccountToggle.isOn;
 
-            EOSSDKManager.Instance.AuthManager.Login(fallbackToAccountPortal: true , (authSuccess, authError) =>
+            AuthManager.Instance.Login(fallbackToAccountPortal: true , (authSuccess, authError) =>
             {
                 if (!authSuccess)
                 {
@@ -160,7 +160,7 @@ namespace EOS
 
         private void CompleteEpicConnectLogin()
         {
-            string userAuthToken = EOSSDKManager.Instance.AuthManager.CopyUserAuthToken();
+            string userAuthToken = AuthManager.Instance.CopyUserAuthToken();
             if (string.IsNullOrEmpty(userAuthToken))
             {
                 Debug.LogError("[EOSLoginManager] Failed to copy Epic user auth token!");
@@ -169,11 +169,11 @@ namespace EOS
                 return;
             }
 
-            EOSSDKManager.Instance.ConnectManager.LoginWithEpic(userAuthToken, (connectSuccess, connectError) =>
+            ConnectManager.Instance.LoginWithEpic(userAuthToken, (connectSuccess, connectError) =>
             {
                 if (connectSuccess)
                 {
-                    EOSSDKManager.Instance.AuthManager.GetDisplayName((epicDisplayName) =>
+                    AuthManager.Instance.GetDisplayName((epicDisplayName) =>
                     {
                         EOSSDKManager.LocalDisplayName = epicDisplayName;
                         SceneManager.LoadScene(nextSceneName);
@@ -190,7 +190,7 @@ namespace EOS
 
         private void OnRememberAccountToggleValueChanged(bool value) 
         {
-            EOSSDKManager.Instance.AuthManager.IsRememberMe = value;
+            AuthManager.Instance.IsRememberMe = value;
         }
 
         private void SteamLogin()
@@ -247,7 +247,7 @@ namespace EOS
 
             string steamName = SteamFriends.GetPersonaName();
 
-            EOSSDKManager.Instance.ConnectManager.LoginWithSteam(
+            ConnectManager.Instance.LoginWithSteam(
                 ticketHex,
                 steamName,
                 (success, error) =>

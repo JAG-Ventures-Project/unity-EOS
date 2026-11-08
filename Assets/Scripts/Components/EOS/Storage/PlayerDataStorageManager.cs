@@ -22,18 +22,26 @@ namespace EOS
         private readonly Dictionary<string, byte[]> _pendingWrites = new Dictionary<string, byte[]>();
         private readonly Dictionary<string, Action<bool, string>> _pendingCallbacks = new Dictionary<string, Action<bool, string>>();
 
-        public PlayerDataStorageManager(PlatformInterface platformInterface)
+        private static PlayerDataStorageManager _instance;
+        public static PlayerDataStorageManager Instance => _instance ??=
+            (EpicTransport.EOSSDKComponent.PlatformInterface != null
+                ? new PlayerDataStorageManager(EpicTransport.EOSSDKComponent.PlatformInterface)
+                : null);
+
+        public PlayerDataStorageManager(PlatformInterface platformInterface = null)
         {
-            _platformHandle = platformInterface;
+            _platformHandle = platformInterface ?? EpicTransport.EOSSDKComponent.PlatformInterface;
             Assert.IsNotNull(_platformHandle, "[PlayerDataStorageManager] PlatformInterface must not be null.");
 
             _storageHandle = _platformHandle.GetPlayerDataStorageInterface();
             Assert.IsNotNull(_storageHandle, "[PlayerDataStorageManager] PlayerDataStorageInterface failed to initialize.");
+
+            EpicTransport.EOSSDKComponent.OnShutdown += () => _instance = null;
         }
 
         private ProductUserId GetLocalUserId()
         {
-            return EOSSDKManager.Instance?.Service?.GetLocalProductUserId();
+            return EpicTransport.EOSSDKComponent.LocalUserProductId;
         }
 
         public void SaveFile(string filename, byte[] data, Action<bool, string> onComplete = null)

@@ -18,16 +18,14 @@ namespace EOS
     public class EOSPlatformService : IDisposable
     {
         private PlatformInterface _platformInterface;
-        
+
         public PlatformInterface PlatformInterface => _platformInterface;
-        public ConnectManager ConnectManager { get; private set; }
-        public AuthManager AuthManager { get; private set; }
-        public LobbyManager Lobby { get; private set; }
-        public PlayerDataStorageManager PlayerDataStorage { get; private set; }
         public CrossPlayFriendsStore CrossPlayStore { get; private set; }
         public LobbyInviteManager LobbyInvites { get; private set; }
         public FriendsManager Friends { get; private set; }
         public bool IsInitialized => _platformInterface != null;
+
+        public event Action OnBeforeShutdown;
 
         private static readonly ProfilerMarker s_EosTickMarker = new ProfilerMarker("EOS.PlatformTick");
 
@@ -92,16 +90,11 @@ namespace EOS
             _platformInterface = CreatePlatform(apiKey);
             Assert.IsNotNull(_platformInterface, "[EOSPlatformService] CreatePlatformInterface returned null!");
 
-            ConnectManager = new ConnectManager(_platformInterface);
-            AuthManager = new AuthManager(_platformInterface);
-            Lobby = new LobbyManager(_platformInterface);
-            PlayerDataStorage = new PlayerDataStorageManager(_platformInterface);
+            EpicTransport.EOSSDKComponent.SetExternalPlatform(_platformInterface, null, () => IsInitialized && GetLocalProductUserId() != null);
 
-            CrossPlayStore = new CrossPlayFriendsStore(PlayerDataStorage);
-            LobbyInvites = new LobbyInviteManager(Lobby, CrossPlayStore);
+            CrossPlayStore = new CrossPlayFriendsStore(PlayerDataStorageManager.Instance);
+            LobbyInvites = new LobbyInviteManager(LobbyManager.Instance, CrossPlayStore);
             Friends = new FriendsManager(_platformInterface, CrossPlayStore, LobbyInvites);
-
-            EpicTransport.EOSSDKComponent.SetExternalPlatform(_platformInterface, null, () => IsInitialized && ConnectManager?.LocalProductUserId != null);
         }
 
         public Result InitializePlatform(EosApiKey apiKey)
@@ -154,7 +147,7 @@ namespace EOS
 
         public void Tick()
         {
-            using(s_EosTickMarker.Auto())
+            using (s_EosTickMarker.Auto())
             {
                 _platformInterface.Tick();
             }
@@ -162,7 +155,7 @@ namespace EOS
 
         public ProductUserId GetLocalProductUserId()
         {
-            return ConnectManager?.LocalProductUserId;
+            return EpicTransport.EOSSDKComponent.LocalUserProductId;
         }
 
         public bool Shutdown()
@@ -178,7 +171,8 @@ namespace EOS
 
                 Friends?.Shutdown();
                 LobbyInvites?.Dispose();
-                Lobby?.Dispose();
+                OnBeforeShutdown?.Invoke();
+                EpicTransport.EOSSDKComponent.TriggerShutdown();
 
                 if (_platformInterface != null)
                 {

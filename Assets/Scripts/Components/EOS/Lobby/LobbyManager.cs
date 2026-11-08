@@ -6,6 +6,8 @@ using Epic.OnlineServices.Lobby;
 using Epic.OnlineServices.Platform;
 using UnityEngine;
 using UnityEngine.Assertions;
+using EpicTransport;
+using Common = Epic.OnlineServices.Common;
 
 namespace EOS
 {
@@ -14,6 +16,7 @@ namespace EOS
         public const string JoinCodeKey = "JOIN_CODE";
         public const string HostAddressKey = "HOST_ADDRESS";
         public const string MatchStartedKey = "MATCH_STARTED";
+        public const string AllowJoinInProgressKey = "ALLOW_JOIN_IN_PROGRESS";
         public const string ReadyKey = "READY";
         public const string DisplayNameKey = "DISPLAY_NAME";
 
@@ -25,6 +28,7 @@ namespace EOS
         public bool AreAllJoinersReady { get; private set; }
         public bool IsCleaningOrphan { get; private set; }
         public bool HasGameStarted => _hasGameStarted;
+        public bool AllowJoinInProgress { get; set; } = false;
         public ProductUserId LocalProductUserId => _localProductUserId;
 
         public event Action<string> OnLobbyCreated;
@@ -53,15 +57,22 @@ namespace EOS
         private bool _hasGameStarted;
 
 
-        public LobbyManager(PlatformInterface platformInterface)
+        private static LobbyManager _instance;
+        public static LobbyManager Instance => _instance ??=
+            (EOSSDKComponent.PlatformInterface != null
+                ? new LobbyManager(EOSSDKComponent.PlatformInterface)
+                : null);
+
+        public LobbyManager(PlatformInterface platformInterface = null)
         {
-            _platformHandle = platformInterface;
+            _platformHandle = platformInterface ?? EOSSDKComponent.PlatformInterface;
             Assert.IsNotNull(_platformHandle, "[LobbyManager] PlatformInterface must not be null.");
 
             _lobbyHandle = _platformHandle.GetLobbyInterface();
             Assert.IsNotNull(_lobbyHandle, "[LobbyManager] LobbyInterface failed to initialize.");
 
             SubscribeToInviteNotifications();
+            EOSSDKComponent.OnShutdown += Dispose;
         }
 
         /// <summary>
@@ -71,7 +82,7 @@ namespace EOS
         {
             Assert.IsTrue(!IsInLobby, "[LobbyManager] Cannot create lobby: Player is already in an active lobby.");
             Assert.IsFalse(IsCleaningOrphan, "[LobbyManager] Cannot create lobby: Orphan cleanup is still pending.");
-            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            _localProductUserId = EOSSDKComponent.LocalUserProductId;
             Assert.IsNotNull(_localProductUserId, "[LobbyManager] LocalProductUserId must not be null.");
 
             ExecuteCreateLobby(_localProductUserId, maxMembers, onComplete);
@@ -80,7 +91,7 @@ namespace EOS
         // AI implementation: Checks local dirty lobby flag and triggers direct single-call orphan cleanup on login.
         public void CheckAndCleanOrphanLobbyOnLogin(Action onComplete = null)
         {
-            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            _localProductUserId = EOSSDKComponent.LocalUserProductId;
 
             if (!LobbyPreferences.HasOrphanLobby(_localProductUserId, out string orphanLobbyId, out bool isOwner))
             {
@@ -143,12 +154,12 @@ namespace EOS
                 PresenceEnabled = false,
                 BucketId = BucketId
             };
-            _lobbyHandle.CreateLobby(createOptions, (maxMembers, onComplete), HandleCreateLobbyCallback);
+            _lobbyHandle.CreateLobby(createOptions, onComplete, HandleCreateLobbyCallback);
         }
 
         private void HandleCreateLobbyCallback(CreateLobbyCallbackInfo data)
         {
-            var (maxMembers, onComplete) = ((uint, Action<bool, string>))data.ClientData;
+            var onComplete = data.ClientData as Action<bool, string>;
 
             if (data.ResultCode != Result.Success)
             {
@@ -201,10 +212,19 @@ namespace EOS
             };
             modHandle.AddAttribute(matchStartedOptions);
 
+            // adding ALLOW_JOIN_IN_PROGRESS attribute
+            var allowJoinAttr = new AttributeData { Key = AllowJoinInProgressKey, Value = AllowJoinInProgress ? "true" : "false" };
+            var allowJoinOptions = new LobbyModificationAddAttributeOptions
+            {
+                Attribute = allowJoinAttr,
+                Visibility = LobbyAttributeVisibility.Public
+            };
+            modHandle.AddAttribute(allowJoinOptions);
+
             // adding DISPLAY_NAME member attribute for host
             modHandle.AddMemberAttribute(new LobbyModificationAddMemberAttributeOptions
             {
-                Attribute = new AttributeData { Key = DisplayNameKey, Value = EOSSDKManager.LocalDisplayName },
+                Attribute = new AttributeData { Key = DisplayNameKey, Value = EOSSDKComponent.DisplayName },
                 Visibility = LobbyAttributeVisibility.Public
             });
 
@@ -235,7 +255,7 @@ namespace EOS
         public void JoinLobbyByCode(string joinCode, Action<bool, string> onComplete = null)
         {
             Assert.IsFalse(IsCleaningOrphan, "[LobbyManager] Cannot join lobby: Orphan cleanup is still pending.");
-            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            _localProductUserId = EOSSDKComponent.LocalUserProductId;
             string formattedCode = joinCode.Trim().ToUpperInvariant();
             var searchOptions = new CreateLobbySearchOptions { MaxResults = 50 };
             Result result = _lobbyHandle.CreateLobbySearch(searchOptions, out LobbySearch searchHandle);
@@ -260,14 +280,6 @@ namespace EOS
                 ComparisonOp = ComparisonOp.Equal
             };
             searchHandle.SetParameter(paramOptions);
-
-            // Filter search by MATCH_STARTED == "false" so backend excludes matches that have already started
-            var matchParamOptions = new LobbySearchSetParameterOptions
-            {
-                Parameter = new AttributeData { Key = MatchStartedKey, Value = "false" },
-                ComparisonOp = ComparisonOp.Equal
-            };
-            searchHandle.SetParameter(matchParamOptions);
 
             var findOptions = new LobbySearchFindOptions { LocalUserId = _localProductUserId };
             searchHandle.Find(findOptions, (searchHandle, onComplete, formattedCode), HandleFindLobbiesCallback);
@@ -305,31 +317,46 @@ namespace EOS
             {
                 hostAddress = hostAttr.Data.Value.AsUtf8;
             }
-            // verify match has not already started
+
+            // verify if match has already started and whether join-in-progress is allowed
+            bool matchAlreadyStarted = false;
             var matchAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = MatchStartedKey };
             if (detailsHandle.CopyAttributeByKey(matchAttrOptions, out Epic.OnlineServices.Lobby.Attribute matchAttr) == Result.Success && matchAttr?.Data?.Value != null)
             {
-                if (matchAttr.Data.Value.AsUtf8 == "true")
+                matchAlreadyStarted = matchAttr.Data.Value.AsUtf8 == "true";
+            }
+
+            if (matchAlreadyStarted)
+            {
+                bool allowsJoinInProgress = false;
+                var allowJoinAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = AllowJoinInProgressKey };
+                if (detailsHandle.CopyAttributeByKey(allowJoinAttrOptions, out Epic.OnlineServices.Lobby.Attribute allowJoinAttr) == Result.Success && allowJoinAttr?.Data?.Value != null)
+                {
+                    allowsJoinInProgress = allowJoinAttr.Data.Value.AsUtf8 == "true";
+                }
+
+                if (!allowsJoinInProgress)
                 {
                     detailsHandle.Release();
                     CompleteOperation(onComplete, false, "Match has already started in this room.");
                     return;
                 }
             }
-            // join the lobby - pass detailsHandle to callback so it stays alive during async join
+
+            // join the lobby - pass detailsHandle and matchAlreadyStarted to callback
             var joinOptions = new JoinLobbyOptions
             {
                 LobbyDetailsHandle = detailsHandle,
                 LocalUserId = _localProductUserId,
                 PresenceEnabled = false
             };
-            _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle), HandleJoinLobbyCallback);
+            _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted), HandleJoinLobbyCallback);
         }
 
         private void HandleJoinLobbyCallback(JoinLobbyCallbackInfo data)
         {
-            var (onComplete, joinCode, hostAddress, detailsHandle) = ((Action<bool, string>, string, string, LobbyDetails))data.ClientData;
-            uint memberCount = detailsHandle.GetMemberCount(new LobbyDetailsGetMemberCountOptions());
+            var (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted) =
+                ((Action<bool, string>, string, string, LobbyDetails, bool))data.ClientData;
             detailsHandle?.Release();
 
             if (data.ResultCode != Result.Success)
@@ -343,13 +370,18 @@ namespace EOS
             IsLobbyOwner = false;
             LobbyPreferences.SetInLobby(_localProductUserId, CurrentLobbyId, isOwner: false);
             _currentHostAddress = hostAddress;
-            _hasGameStarted = false;
-            CurrentMemberCount = (int)memberCount + 1;
+            _hasGameStarted = matchAlreadyStarted;
             SubscribeToNotifications();
             UpdateAndCheckReadyStatus();
-            SetLocalMemberDisplayName(EOSSDKManager.LocalDisplayName);
+            SetLocalMemberDisplayName(EOSSDKComponent.DisplayName);
             OnLobbyJoined?.Invoke(hostAddress);
             CompleteOperation(onComplete, true, hostAddress);
+
+            // If match has already started, immediately fire OnGameStarted so late-joiner connects to the active match
+            if (matchAlreadyStarted)
+            {
+                OnGameStarted?.Invoke(hostAddress);
+            }
         }
 
         /// <summary>
@@ -711,6 +743,7 @@ namespace EOS
                         manager._hasGameStarted = false;
                     }
                 }
+
                 detailsHandle.Release();
                 manager.UpdateAndCheckReadyStatus();
                 manager.OnLobbyUpdated?.Invoke();
@@ -738,15 +771,13 @@ namespace EOS
             switch (data.CurrentStatus)
             {
                 case LobbyMemberStatus.Joined:
-                    manager.CurrentMemberCount++;
-                    manager.UpdateAndCheckReadyStatus(); // for when a new player joins and everyone is ready
+                    manager.UpdateAndCheckReadyStatus(); // synchronizes CurrentMemberCount and checks ready
                     manager.OnPlayerJoined?.Invoke(data.TargetUserId);
                     break;
                 case LobbyMemberStatus.Left:
                 case LobbyMemberStatus.Disconnected:
                 case LobbyMemberStatus.Kicked:
-                    manager.CurrentMemberCount = Math.Max(1, manager.CurrentMemberCount - 1);
-                    manager.UpdateAndCheckReadyStatus(); // when someone leaves check if all of the others are ready
+                    manager.UpdateAndCheckReadyStatus(); // synchronizes CurrentMemberCount and checks ready
                     manager.OnPlayerLeft?.Invoke(data.TargetUserId);
                     break;
                 case LobbyMemberStatus.Closed:
@@ -781,12 +812,15 @@ namespace EOS
                 return;
             }
 
-            // Lock the lobby permissions to Inviteonly so it is no longer publicly advertised or searchable
-            var permissionOptions = new LobbyModificationSetPermissionLevelOptions
+            // If join-in-progress is NOT allowed, lock the lobby permissions to Inviteonly so it is no longer publicly advertised or searchable
+            if (!AllowJoinInProgress)
             {
-                PermissionLevel = LobbyPermissionLevel.Inviteonly
-            };
-            modHandle.SetPermissionLevel(permissionOptions);
+                var permissionOptions = new LobbyModificationSetPermissionLevelOptions
+                {
+                    PermissionLevel = LobbyPermissionLevel.Inviteonly
+                };
+                modHandle.SetPermissionLevel(permissionOptions);
+            }
 
             // Mark MATCH_STARTED as true
             var startAttr = new AttributeData { Key = MatchStartedKey, Value = "true" };
@@ -962,7 +996,7 @@ namespace EOS
         public string GetMemberDisplayName(ProductUserId userId)
         {
             if (userId == null || userId == _localProductUserId)
-                return EOSSDKManager.LocalDisplayName;
+                return EOSSDKComponent.DisplayName;
 
             var copyOptions = new CopyLobbyDetailsHandleOptions { LobbyId = CurrentLobbyId, LocalUserId = _localProductUserId };
             if (_lobbyHandle.CopyLobbyDetailsHandle(copyOptions, out LobbyDetails detailsHandle) != Result.Success)
@@ -1021,6 +1055,7 @@ namespace EOS
             }
 
             uint memberCount = detailsHandle.GetMemberCount(new LobbyDetailsGetMemberCountOptions());
+            CurrentMemberCount = (int)memberCount;
             var copyInfoOptions = new LobbyDetailsCopyInfoOptions();
             ProductUserId ownerUserId = null;
             if (detailsHandle.CopyInfo(copyInfoOptions, out LobbyDetailsInfo info) == Result.Success && info != null)
@@ -1102,6 +1137,7 @@ namespace EOS
 
         public void Dispose()
         {
+            _instance = null;
             UnsubscribeFromInviteNotifications();
             LobbyPreferences.ClearInLobby(_localProductUserId);
             UnsubscribeFromNotifications();

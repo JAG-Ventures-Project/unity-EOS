@@ -1,4 +1,4 @@
-using TMPro;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -6,39 +6,34 @@ namespace EOS.UI.Analytics
 {
     /// <summary>
     /// Displays comprehensive network diagnostics and system performance metrics on the Analytics HUD.
-    /// Metrics include:
-    /// - Input Responsiveness (Action delay)
-    /// - Simulation Delay (Server frame queuing)
-    /// - Jitter (RTT variance)
-    /// - Packet Loss percentage
-    /// - EOS Route & NAT Quality
-    /// - Timeline Offset and Server Send Rate
+    /// Dynamically instantiates and updates rows using AnalyticRowUI.
     /// </summary>
     [DisallowMultipleComponent]
     public class NetworkDiagnosticsUI : MonoBehaviour
     {
-        [Header("Responsiveness & Delays")]
-        [SerializeField] private TMP_Text inputResponsivenessText;
-        [SerializeField] private TMP_Text simulationDelayText;
-        [SerializeField] private TMP_Text timelineOffsetText;
-
-        [Header("Network Stability & Loss")]
-        [SerializeField] private TMP_Text rttText;
-        [SerializeField] private TMP_Text jitterText;
-        [SerializeField] private TMP_Text packetLossText;
-
-        [Header("EOS Route & Transport")]
-        [SerializeField] private TMP_Text natTypeText;
-        [SerializeField] private TMP_Text p2pQueueText;
-
-        [Header("Server Simulation")]
-        [SerializeField] private TMP_Text serverSendRateText;
+        [Header("UI Containers & Prefab")]
+        [SerializeField] private Transform rowsParent;
+        [SerializeField] private AnalyticRowUI rowPrefab;
 
         [Header("Status Colors")]
         [SerializeField] private Color goodColor = new Color(0.2f, 0.85f, 0.3f, 1f);
         [SerializeField] private Color mediumColor = new Color(1f, 0.75f, 0.1f, 1f);
         [SerializeField] private Color badColor = new Color(0.95f, 0.25f, 0.2f, 1f);
 
+        private static readonly (string StatName, string Title)[] StatDefinitions = new[]
+        {
+            ("Input Responsiveness", "Input Responsiveness : "),
+            ("Simulation Delay", "Simulation Delay : "),
+            ("Timeline Offset", "Timeline Offset : "),
+            ("Rtt", "Rtt : "),
+            ("Jitter", "Jitter : "),
+            ("Packet Loss", "Packet Loss : "),
+            ("Nat Type", "Nat Type : "),
+            ("P2P Queue", "P2P Queue : "),
+            ("Server Send Rate", "Server Send Rate : ")
+        };
+
+        private readonly List<AnalyticRowUI> _spawnedRows = new List<AnalyticRowUI>();
         private bool _isOpen;
 
         public bool IsOpen => _isOpen;
@@ -46,29 +41,41 @@ namespace EOS.UI.Analytics
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(inputResponsivenessText, "[NetworkDiagnosticsUI] Input Responsiveness Text is null");
-            Assert.IsNotNull(simulationDelayText, "[NetworkDiagnosticsUI] Simulation Delay Text is null");
-            Assert.IsNotNull(timelineOffsetText, "[NetworkDiagnosticsUI] Timeline Offset Text is null");
-            Assert.IsNotNull(rttText, "[NetworkDiagnosticsUI] RTT Text is null");
-            Assert.IsNotNull(jitterText, "[NetworkDiagnosticsUI] Jitter Text is null");
-            Assert.IsNotNull(packetLossText, "[NetworkDiagnosticsUI] Packet Loss Text is null");
-            Assert.IsNotNull(natTypeText, "[NetworkDiagnosticsUI] NAT Type Text is null");
-            Assert.IsNotNull(p2pQueueText, "[NetworkDiagnosticsUI] P2P Queue Text is null");
-            Assert.IsNotNull(serverSendRateText, "[NetworkDiagnosticsUI] Server Send Rate Text is null");
+            Assert.IsNotNull(rowsParent, "[NetworkDiagnosticsUI] Rows Parent is null! Please assign in inspector.");
+            Assert.IsNotNull(rowPrefab, "[NetworkDiagnosticsUI] Row Prefab is null! Please assign in inspector.");
         }
 #endif
 
         private void OnEnable()
         {
-            NetworkDiagnosticsManager.Instance.OnStatsUpdated += HandleStatsUpdated;
-            NetworkDiagnosticsManager.Instance.SetProbingActive(true);
-            UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+            if (NetworkDiagnosticsManager.Instance != null)
+            {
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated += HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.SetProbingActive(true);
+                UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+            }
+        }
+
+        private void Start()
+        {
+            InitializeRows();
+
+            if (NetworkDiagnosticsManager.Instance != null)
+            {
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated += HandleStatsUpdated;
+                UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+            }
         }
 
         private void OnDisable()
         {
-            NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
-            NetworkDiagnosticsManager.Instance.SetProbingActive(false);
+            if (NetworkDiagnosticsManager.Instance != null)
+            {
+                NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;
+                NetworkDiagnosticsManager.Instance.SetProbingActive(false);
+            }
         }
 
         public void SetMenuOpen(bool open)
@@ -76,13 +83,14 @@ namespace EOS.UI.Analytics
             if (_isOpen == open) return;
             _isOpen = open;
 
-            gameObject.SetActive(open);
-
-            NetworkDiagnosticsManager.Instance.SetProbingActive(open);
-
-            if (open)
+            if (NetworkDiagnosticsManager.Instance != null)
             {
-                UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+                NetworkDiagnosticsManager.Instance.SetProbingActive(open);
+
+                if (open)
+                {
+                    UpdateDisplay(NetworkDiagnosticsManager.Instance.CurrentStats);
+                }
             }
         }
 
@@ -94,45 +102,61 @@ namespace EOS.UI.Analytics
             }
         }
 
+        private void InitializeRows()
+        {
+            for (int i = 0; i < StatDefinitions.Length; i++)
+            {
+                AnalyticRowUI row = Instantiate(rowPrefab, rowsParent);
+                row.gameObject.name = StatDefinitions[i].StatName;
+                row.SetTitle(StatDefinitions[i].Title);
+                _spawnedRows.Add(row);
+            }
+        }
+
         private void UpdateDisplay(NetworkPerformanceStats stats)
         {
-            // --- Responsiveness ---
-            inputResponsivenessText.text = $"Input Delay: {stats.inputResponsivenessMs:0.0} ms";
-            inputResponsivenessText.color = stats.inputResponsivenessMs < 50f
+            // 0: Input Responsiveness
+            Color respColor = stats.inputResponsivenessMs < 50f
                 ? goodColor
                 : (stats.inputResponsivenessMs < 100f ? mediumColor : badColor);
+            _spawnedRows[0].SetValue($"{stats.inputResponsivenessMs:0.0} ms", respColor);
 
-            simulationDelayText.text = $"Simulation Delay: {stats.simulationDelayMs:0.0} ms";
-            simulationDelayText.color = stats.simulationDelayMs < 20f ? goodColor : mediumColor;
+            // 1: Simulation Delay
+            Color simColor = stats.simulationDelayMs < 20f ? goodColor : mediumColor;
+            _spawnedRows[1].SetValue($"{stats.simulationDelayMs:0.0} ms", simColor);
 
-            timelineOffsetText.text = $"Clock Offset: {stats.timelineOffsetMs:0.0} ms";
+            // 2: Timeline Offset
+            _spawnedRows[2].SetValue($"{stats.timelineOffsetMs:0.0} ms");
 
-            // --- Network Stability ---
-            rttText.text = $"RTT (Ping): {stats.rttMs:0} ms";
-            rttText.color = stats.rttMs < 60f ? goodColor : (stats.rttMs < 120f ? mediumColor : badColor);
+            // 3: Rtt
+            Color rttColor = stats.rttMs < 60f ? goodColor : (stats.rttMs < 120f ? mediumColor : badColor);
+            _spawnedRows[3].SetValue($"{stats.rttMs:0} ms", rttColor);
 
-            jitterText.text = $"Jitter: ±{stats.jitterMs:0.0} ms";
-            jitterText.color = stats.jitterMs < 5f ? goodColor : (stats.jitterMs < 15f ? mediumColor : badColor);
+            // 4: Jitter
+            Color jitterColor = stats.jitterMs < 5f ? goodColor : (stats.jitterMs < 15f ? mediumColor : badColor);
+            _spawnedRows[4].SetValue($"±{stats.jitterMs:0.0} ms", jitterColor);
 
-            packetLossText.text = $"Packet Loss: {stats.packetLossPercent:0.0} %";
-            packetLossText.color = stats.packetLossPercent == 0f
+            // 5: Packet Loss
+            Color lossColor = stats.packetLossPercent == 0f
                 ? goodColor
                 : (stats.packetLossPercent < 2f ? mediumColor : badColor);
+            _spawnedRows[5].SetValue($"{stats.packetLossPercent:0.0} %", lossColor);
 
-            // --- EOS Route ---
-            natTypeText.text = $"NAT Route: {stats.natType}";
-            natTypeText.color = stats.natType switch
+            // 6: Nat Type
+            Color natColor = stats.natType switch
             {
                 "Open" => goodColor,
                 "Moderate" => mediumColor,
                 "Strict" => badColor,
-                _ => Color.white
+                _ => Color.black
             };
+            _spawnedRows[6].SetValue(stats.natType, natColor);
 
-            p2pQueueText.text = $"P2P Queues: {stats.incomingPacketsQueued} in / {stats.outgoingPacketsQueued} out";
+            // 7: P2P Queue
+            _spawnedRows[7].SetValue($"{stats.incomingPacketsQueued} in / {stats.outgoingPacketsQueued} out");
 
-            // --- Server Tick ---
-            serverSendRateText.text = $"Server Tick: {stats.serverSendRate} Hz";
+            // 8: Server Send Rate
+            _spawnedRows[8].SetValue($"{stats.serverSendRate} Hz");
         }
     }
 }

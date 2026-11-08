@@ -15,9 +15,10 @@ namespace EOS
         bool AreAllJoinersReady { get; }
         bool IsCleaningOrphan { get; }
         bool HasGameStarted { get; }
+        bool AllowJoinInProgress { get; set; }
         ProductUserId LocalProductUserId { get; }
-        event Action<string> OnLobbyCreated;      
-        event Action<string> OnLobbyJoined;       
+        event Action<string> OnLobbyCreated;
+        event Action<string> OnLobbyJoined;
         event Action OnLobbyLeft;
         event Action<ProductUserId> OnPlayerJoined;
         event Action<ProductUserId> OnPlayerLeft;

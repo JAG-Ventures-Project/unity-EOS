@@ -20,7 +20,11 @@ namespace EOS
         public static EOSSDKManager Instance { get; private set; }
 
         public static HAuthTicket SteamAuthTicket { get; set; } = HAuthTicket.Invalid;
-        public static string LocalDisplayName { get; set; } = "Player";
+        public static string LocalDisplayName
+        {
+            get => EpicTransport.EOSSDKComponent.DisplayName;
+            set => EpicTransport.EOSSDKComponent.DisplayName = value;
+        }
 
         public EosApiKey EosApiKey
         {
@@ -31,10 +35,6 @@ namespace EOS
         private EOSPlatformService _platformService;
 
         public EOSPlatformService Service => _platformService;
-        public ConnectManager ConnectManager => _platformService?.ConnectManager;
-        public AuthManager AuthManager => _platformService?.AuthManager;
-        public LobbyManager Lobby => _platformService?.Lobby;
-        public PlayerDataStorageManager PlayerDataStorage => _platformService?.PlayerDataStorage;
         public CrossPlayFriendsStore CrossPlayStore => _platformService?.CrossPlayStore;
         public LobbyInviteManager LobbyInvites => _platformService?.LobbyInvites;
         public FriendsManager Friends => _platformService?.Friends;

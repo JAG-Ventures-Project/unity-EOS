@@ -47,9 +47,10 @@ namespace EOS
             Assert.IsNotNull(colorButtonPrefab, "[CustomizationUIManager] colorButtonPrefab is null! Please assign in inspector.");
             Assert.IsNotNull(playerColorPreview, "[CustomizationUIManager] playerColorPreview is null! Please assign in inspector.");
             Assert.IsNotNull(playerColorGridParent, "[CustomizationUIManager] playerColorGridParent is null! Please assign in inspector.");
-            Assert.IsNotNull(petColorPreview, "[CustomizationUIManager] petColorPreview is null! Please assign in inspector.");
-            Assert.IsNotNull(petColorGridParent, "[CustomizationUIManager] petColorGridParent is null! Please assign in inspector.");
-            Assert.IsNotNull(petActiveToggle, "[CustomizationUIManager] petActiveToggle is null! Please assign in inspector.");
+            // Q: do i re activate them ?
+            // Assert.IsNotNull(petColorPreview, "[CustomizationUIManager] petColorPreview is null! Please assign in inspector.");
+            // Assert.IsNotNull(petColorGridParent, "[CustomizationUIManager] petColorGridParent is null! Please assign in inspector.");
+            // Assert.IsNotNull(petActiveToggle, "[CustomizationUIManager] petActiveToggle is null! Please assign in inspector.");
             Assert.IsTrue(playerPresetColors != null && playerPresetColors.Length > 0, "[CustomizationUIManager] playerPresetColors is empty! Please assign in inspector.");
             Assert.IsTrue(petPresetColors != null && petPresetColors.Length > 0, "[CustomizationUIManager] petPresetColors is empty! Please assign in inspector.");
         }
@@ -57,13 +58,13 @@ namespace EOS
 
         private void Awake()
         {
-            _playerDataStorage = EOSSDKManager.Instance?.PlayerDataStorage;
+            _playerDataStorage = PlayerDataStorageManager.Instance;
             _customizationData = new PlayerCustomizationData();
+
+            SetupPlayerUIListeners();
 
             PlayerController.OnLocalPlayerSpawned += OnLocalPlayerSpawned;
             PetController.OnLocalPetSpawned += OnLocalPetSpawned;
-
-            SetupUIListeners();
         }
 
         private void Start()
@@ -86,21 +87,26 @@ namespace EOS
 
             SetMenuOpen(false);
         }
+
         private void OnDestroy()
         {
             PlayerController.OnLocalPlayerSpawned -= OnLocalPlayerSpawned;
             PetController.OnLocalPetSpawned -= OnLocalPetSpawned;
         }
 
-        private void SetupUIListeners()
+        private void SetupPlayerUIListeners()
         {
             openButton.onClick.AddListener(OpenMenu);
             closeButton.onClick.AddListener(CloseMenu);
 
+            SpawnPaletteButtons(playerColorGridParent, playerPresetColors, SetPlayerColor);
+        }
+
+        private void SetupPetUIListeners()
+        {
             petActiveToggle.isOn = _customizationData.hasPet;
             petActiveToggle.onValueChanged.AddListener(SetPetActive);
 
-            SpawnPaletteButtons(playerColorGridParent, playerPresetColors, SetPlayerColor);
             SpawnPaletteButtons(petColorGridParent, petPresetColors, SetPetColor);
         }
 
@@ -214,6 +220,7 @@ namespace EOS
         private void OnLocalPetSpawned(PetController pet)
         {
             _localPet = pet;
+            SetupPetUIListeners();
 
             _localPet.CmdRequestColorChange(PlayerCustomizationData.ColorToVector3(_customizationData.petColor));
             _localPet.CmdSetPetActive(_customizationData.hasPet);

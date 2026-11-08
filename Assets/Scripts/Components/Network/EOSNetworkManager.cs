@@ -3,13 +3,12 @@ using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
 using UnityEngine.Assertions;
+using UnityEngine.SceneManagement;
 using EpicTransport;
-using Minimap.FPC;
-using Epic.OnlineServices;
 
 namespace EOS
 {
-    [RequireComponent(typeof(EosTransport))]   
+    [RequireComponent(typeof(EosTransport))]
     [DisallowMultipleComponent]
     public class EOSNetworkManager : NetworkManager
     {
@@ -20,32 +19,38 @@ namespace EOS
         private bool _isVoluntaryDisconnect;
 
         public static EOSNetworkManager Instance => singleton as EOSNetworkManager;
-        
+
+        public event Action OnUnexpectedClientDisconnect;
+        public Func<NetworkConnectionToClient, string> CustomDisplayNameResolver { get; set; }
+
         private EosTransport _eosTransport;
 
 #if UNITY_EDITOR
-        
+
         private void OnValidate()
         {
-            Assert.IsNotNull(petPrefab, "Pet Prefab is null!");
+            // We didn't add the pet because it's optional
+            Assert.IsNotNull(playerPrefab, "[EOSNetworkManager] Player Prefab is null!");
+            Assert.IsNotNull(offlineScene, "[EOSNetworkManager] Offline Scene is null!");
+            Assert.IsNotNull(onlineScene, "[EOSNetworkManager] Online Scene is null!");
         }
-        
+
 #endif
 
         public override void Awake()
         {
             base.Awake();
             TryGetComponent(out _eosTransport);
-        }    
+        }
 
-#region Lobby UI Connection Handlers
+        #region Connection Handlers
 
         public void StartEosHost(string targetScene = null)
         {
             onlineScene = targetScene;
             StartHost();
         }
-        
+
         public void StartEosClient(string hostProductUserId)
         {
             networkAddress = hostProductUserId;
@@ -53,20 +58,38 @@ namespace EOS
         }
 
         public void StopNetwork()
-        {          
+        {
             _isVoluntaryDisconnect = true;
             if (NetworkServer.active && NetworkClient.isConnected)
             {
                 StopHost();
             }
-            else if (NetworkClient.isConnected)
+            else
             {
-                StopClient();
+                if (NetworkClient.active || NetworkClient.isConnected)
+                {
+                    StopClient();
+                }
+                if (NetworkServer.active)
+                {
+                    StopServer();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(offlineScene))
+            {
+                string currentScene = SceneManager.GetActiveScene().name;
+                string targetSceneName = System.IO.Path.GetFileNameWithoutExtension(offlineScene);
+
+                if (currentScene != offlineScene && currentScene != targetSceneName)
+                {
+                    SceneManager.LoadScene(offlineScene);
+                }
             }
         }
 
         public bool StartMatch(string sceneName)
-        {    
+        {
             if (NetworkServer.active)
             {
                 ServerChangeScene(sceneName);
@@ -87,18 +110,7 @@ namespace EOS
                 return;
             }
 
-            var lobby = EOSSDKManager.Instance?.Lobby;
-            if (lobby != null && lobby.IsInLobby && !lobby.HasGameStarted)
-            {
-                return;
-            }
-
-            if (lobby != null && lobby.IsInLobby)
-            {
-                lobby.LeaveLobby();
-            }
-
-            NotificationManager.Show("Disconnected from server.", NotificationType.Warning);
+            OnUnexpectedClientDisconnect?.Invoke();
         }
 
         public override void OnStopClient()
@@ -114,56 +126,64 @@ namespace EOS
             _isVoluntaryDisconnect = false;
         }
 
-#endregion
-   
-#region Server-Authoritative Spawning Overrides
+        #endregion
+
+        #region Server-Authoritative Spawning Overrides
         public override void OnServerAddPlayer(NetworkConnectionToClient conn)
         {
             Transform startPos = GetStartPosition();
             GameObject playerInstance = startPos != null
                 ? Instantiate(playerPrefab, startPos.position, startPos.rotation)
                 : Instantiate(playerPrefab);
-            
+
             string playerName = GetPlayerDisplayName(conn);
             playerInstance.name = $"{playerPrefab.name} [{playerName}]";
             NetworkServer.AddPlayerForConnection(conn, playerInstance);
 
-            Vector3 spawnOffset = playerInstance.transform.position + Vector3.right * 1.5f;
-            GameObject petInstance = Instantiate(petPrefab, spawnOffset, Quaternion.identity);
-            petInstance.name = $"{petPrefab.name} [{playerName}]";
-            petInstance.TryGetComponent(out PetController petController);
-            petController.SetOwner(playerInstance.transform);
-            NetworkServer.Spawn(petInstance, conn);
-            _spawnedPets[conn] = petInstance;
+            if (petPrefab != null)
+            {
+                Vector3 spawnOffset = playerInstance.transform.position + Vector3.right * 1.5f;
+                GameObject petInstance = Instantiate(petPrefab, spawnOffset, Quaternion.identity);
+                petInstance.name = $"{petPrefab.name} [{playerName}]";
+                NetworkServer.Spawn(petInstance, conn);
+                _spawnedPets[conn] = petInstance;
+            }
         }
 
         public string GetPlayerDisplayName(NetworkConnectionToClient conn)
         {
-            // Host player: use local display name (from Epic, Steam, or custom input field)
+            if (CustomDisplayNameResolver != null)
+            {
+                string resolvedName = CustomDisplayNameResolver.Invoke(conn);
+                if (!string.IsNullOrWhiteSpace(resolvedName))
+                {
+                    return resolvedName;
+                }
+            }
+
             if (conn is LocalConnectionToClient || conn.connectionId == 0)
             {
-                return !string.IsNullOrWhiteSpace(EOSSDKManager.LocalDisplayName)
-                    ? EOSSDKManager.LocalDisplayName
+                return !string.IsNullOrWhiteSpace(EOSSDKComponent.DisplayName)
+                    ? EOSSDKComponent.DisplayName
                     : "Host";
             }
 
-            // Remote client: resolve via EOS Lobby using conn.address (ProductUserId)
-            var lobby = EOSSDKManager.Instance?.Lobby;
-            ProductUserId userId = ProductUserId.FromString(conn.address);
-            string memberName = lobby.GetMemberDisplayName(userId);
-            return memberName;
+            return !string.IsNullOrEmpty(conn.address)
+                ? conn.address
+                : $"Player {conn.connectionId}";
         }
 
-        
+
         public override void OnServerDisconnect(NetworkConnectionToClient conn)
         {
             base.OnServerDisconnect(conn);
 
-            _spawnedPets.TryGetValue(conn, out GameObject petInstance);
-            NetworkServer.Destroy(petInstance);
-            _spawnedPets.Remove(conn);
+            if (_spawnedPets.Remove(conn, out GameObject petInstance) && petInstance != null)
+            {
+                NetworkServer.Destroy(petInstance);
+            }
         }
-#endregion
+        #endregion
 
     }
 }

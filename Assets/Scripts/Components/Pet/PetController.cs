@@ -54,7 +54,7 @@ namespace Minimap.FPC
 
 #if UNITY_EDITOR
         private void OnValidate()
-        {            
+        {
             TryGetComponent(out _meshRenderer);
             TryGetComponent(out _collider);
             TryGetComponent(out _networkTransform);
@@ -71,6 +71,7 @@ namespace Minimap.FPC
         public override void OnStartServer()
         {
             base.OnStartServer();
+            SetOwner(connectionToClient.identity.transform);
             _lastPosition = transform.position;
             UpdatePetActiveState(_isPetActive);
         }
@@ -106,16 +107,23 @@ namespace Minimap.FPC
             if (LocalPet == this) LocalPet = null;
         }
 
-        // AI Implementation
-        private void FixedUpdate()
+        // AI Implementation - LateUpdate ensures the owner's movement, physics, and rotation have settled for the frame before following
+        private void LateUpdate()
         {
             Vector3 targetPos = _targetOwner.position + _targetOwner.TransformDirection(_followOffset);
             targetPos.y += Mathf.Sin(Time.time * _hoverFrequency) * _hoverAmplitude;
-            transform.position = Vector3.Lerp(transform.position, targetPos, Time.fixedDeltaTime * _followSpeed);
-            transform.rotation = Quaternion.Slerp(transform.rotation, _targetOwner.rotation, Time.fixedDeltaTime * _rotationSpeed);
+
+            float dt = Time.deltaTime;
+
+            // Framerate-independent smooth damping
+            float t = 1f - Mathf.Exp(-_followSpeed * dt);
+            transform.position = Vector3.Lerp(transform.position, targetPos, t);
+
+            float rotT = 1f - Mathf.Exp(-_rotationSpeed * dt);
+            transform.rotation = Quaternion.Slerp(transform.rotation, _targetOwner.rotation, rotT);
 
             // Authoritative SyncVar calculations
-            _netVelocity = (transform.position - _lastPosition) / Time.fixedDeltaTime;
+            _netVelocity = (transform.position - _lastPosition) / dt;
             _netCoordinates = new Vector3(transform.position.x, transform.position.z, transform.position.y);
             _lastPosition = transform.position;
         }

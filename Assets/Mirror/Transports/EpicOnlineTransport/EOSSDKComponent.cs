@@ -31,11 +31,16 @@ namespace EpicTransport {
         public Epic.OnlineServices.ExternalCredentialType connectInterfaceCredentialType = Epic.OnlineServices.ExternalCredentialType.DeviceidAccessToken;
         public string deviceModel = "PC Windows 64bit";
         [SerializeField] private string displayName = "User";
+        private static string s_externalDisplayName;
         public static string DisplayName {
             get {
+                if (!string.IsNullOrEmpty(s_externalDisplayName)) {
+                    return s_externalDisplayName;
+                }
                 return (instance != null && !string.IsNullOrEmpty(instance.displayName)) ? instance.displayName : "Player";
             }
             set {
+                s_externalDisplayName = value;
                 if (instance != null) instance.displayName = value;
             }
         }
@@ -74,8 +79,19 @@ namespace EpicTransport {
         private static ProductUserId s_externalLocalProductUserId;
         private static Func<bool> s_externalInitializedCheck;
 
+        public static event Action OnShutdown;
+
+        public static void TriggerShutdown()
+        {
+            OnShutdown?.Invoke();
+        }
+
         public static void SetExternalPlatform(PlatformInterface platform, ProductUserId localUserId, Func<bool> isInitializedCheck = null)
         {
+            if (platform == null && s_externalPlatform != null)
+            {
+                OnShutdown?.Invoke();
+            }
             s_externalPlatform = platform;
             s_externalLocalProductUserId = localUserId;
             s_externalInitializedCheck = isInitializedCheck;
@@ -85,6 +101,8 @@ namespace EpicTransport {
         {
             s_externalLocalProductUserId = localUserId;
         }
+
+        public static PlatformInterface PlatformInterface => ActivePlatform;
 
         private static PlatformInterface ActivePlatform => (instance != null && instance.EOS != null)
             ? instance.EOS
@@ -242,7 +260,7 @@ namespace EpicTransport {
             Bindings.Hook(libraryPointer, GetProcAddress);
 #endif
 
-            if (!delayedInitialization) {
+            if (!delayedInitialization && s_externalPlatform == null) {
                 Initialize();
             }
         }
@@ -541,6 +559,7 @@ namespace EpicTransport {
         }
 
         private void OnApplicationQuit() {
+            OnShutdown?.Invoke();
             if (EOS != null) {
                 EOS.Release();
                 EOS = null;
