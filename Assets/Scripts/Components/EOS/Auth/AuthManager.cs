@@ -41,10 +41,17 @@ namespace EOS
             }
         }
 
-        public AuthManager(PlatformInterface platformInterface)
+        private static AuthManager _instance;
+        public static AuthManager Instance => _instance ??=
+            (EpicTransport.EOSSDKComponent.PlatformInterface != null
+                ? new AuthManager(EpicTransport.EOSSDKComponent.PlatformInterface)
+                : null);
+
+        public AuthManager(PlatformInterface platformInterface = null)
         {
-            _platformInterface = platformInterface;
+            _platformInterface = platformInterface ?? EpicTransport.EOSSDKComponent.PlatformInterface;
             _authInterface = _platformInterface?.GetAuthInterface();
+            EpicTransport.EOSSDKComponent.OnShutdown += () => _instance = null;
         }
 
         /// <summary>

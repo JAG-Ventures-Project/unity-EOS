@@ -6,6 +6,8 @@ using Epic.OnlineServices.Lobby;
 using Epic.OnlineServices.Platform;
 using UnityEngine;
 using UnityEngine.Assertions;
+using EpicTransport;
+using Common = Epic.OnlineServices.Common;
 
 namespace EOS
 {
@@ -53,13 +55,21 @@ namespace EOS
         private bool _hasGameStarted;
 
 
-        public LobbyManager(PlatformInterface platformInterface)
+        private static LobbyManager _instance;
+        public static LobbyManager Instance => _instance ??=
+            (EOSSDKComponent.PlatformInterface != null
+                ? new LobbyManager(EOSSDKComponent.PlatformInterface)
+                : null);
+
+        public LobbyManager(PlatformInterface platformInterface = null)
         {
-            _platformHandle = platformInterface;
+            _platformHandle = platformInterface ?? EOSSDKComponent.PlatformInterface;
             Assert.IsNotNull(_platformHandle, "[LobbyManager] PlatformInterface must not be null.");
 
             _lobbyHandle = _platformHandle.GetLobbyInterface();
             Assert.IsNotNull(_lobbyHandle, "[LobbyManager] LobbyInterface failed to initialize.");
+
+            EOSSDKComponent.OnShutdown += Dispose;
         }
 
         /// <summary>
@@ -69,7 +79,7 @@ namespace EOS
         {
             Assert.IsTrue(!IsInLobby, "[LobbyManager] Cannot create lobby: Player is already in an active lobby.");
             Assert.IsFalse(IsCleaningOrphan, "[LobbyManager] Cannot create lobby: Orphan cleanup is still pending.");
-            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            _localProductUserId = EOSSDKComponent.LocalUserProductId;
             Assert.IsNotNull(_localProductUserId, "[LobbyManager] LocalProductUserId must not be null.");
 
             ExecuteCreateLobby(_localProductUserId, maxMembers, onComplete);
@@ -78,7 +88,7 @@ namespace EOS
         // AI implementation: Checks local dirty lobby flag and triggers direct single-call orphan cleanup on login.
         public void CheckAndCleanOrphanLobbyOnLogin(Action onComplete = null)
         {
-            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            _localProductUserId = EOSSDKComponent.LocalUserProductId;
 
             if (!LobbyPreferences.HasOrphanLobby(_localProductUserId, out string orphanLobbyId, out bool isOwner))
             {
@@ -211,7 +221,7 @@ namespace EOS
             // adding DISPLAY_NAME member attribute for host
             modHandle.AddMemberAttribute(new LobbyModificationAddMemberAttributeOptions
             {
-                Attribute = new AttributeData { Key = DisplayNameKey, Value = EOSSDKManager.LocalDisplayName },
+                Attribute = new AttributeData { Key = DisplayNameKey, Value = EOSSDKComponent.DisplayName },
                 Visibility = LobbyAttributeVisibility.Public
             });
 
@@ -242,7 +252,7 @@ namespace EOS
         public void JoinLobbyByCode(string joinCode, Action<bool, string> onComplete = null)
         {
             Assert.IsFalse(IsCleaningOrphan, "[LobbyManager] Cannot join lobby: Orphan cleanup is still pending.");
-            _localProductUserId = EOSSDKManager.Instance.Service.GetLocalProductUserId();
+            _localProductUserId = EOSSDKComponent.LocalUserProductId;
             string formattedCode = joinCode.Trim().ToUpperInvariant();
             var searchOptions = new CreateLobbySearchOptions { MaxResults = 50 };
             Result result = _lobbyHandle.CreateLobbySearch(searchOptions, out LobbySearch searchHandle);
@@ -359,7 +369,7 @@ namespace EOS
             _hasGameStarted = matchAlreadyStarted;
             SubscribeToNotifications();
             UpdateAndCheckReadyStatus();
-            SetLocalMemberDisplayName(EOSSDKManager.LocalDisplayName);
+            SetLocalMemberDisplayName(EOSSDKComponent.DisplayName);
             OnLobbyJoined?.Invoke(hostAddress);
             CompleteOperation(onComplete, true, hostAddress);
 
@@ -786,7 +796,7 @@ namespace EOS
         public string GetMemberDisplayName(ProductUserId userId)
         {
             if (userId == null || userId == _localProductUserId)
-                return EOSSDKManager.LocalDisplayName;
+                return EOSSDKComponent.DisplayName;
 
             var copyOptions = new CopyLobbyDetailsHandleOptions { LobbyId = CurrentLobbyId, LocalUserId = _localProductUserId };
             if (_lobbyHandle.CopyLobbyDetailsHandle(copyOptions, out LobbyDetails detailsHandle) != Result.Success)
@@ -927,6 +937,7 @@ namespace EOS
 
         public void Dispose()
         {
+            _instance = null;
             LobbyPreferences.ClearInLobby(_localProductUserId);
             UnsubscribeFromNotifications();
 

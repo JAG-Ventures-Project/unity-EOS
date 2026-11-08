@@ -27,8 +27,6 @@ namespace Minimap.FPC
         private Vector2 _moveInput;
         private Vector2 _cameraRotationInput;
         private bool _isSprinting;
-        private static readonly System.Random _syncRandom = new System.Random();
-        private static readonly byte[] _syncRandomBytes = new byte[800];
 
         #region Synchronized State (SyncVars)
 
@@ -38,16 +36,9 @@ namespace Minimap.FPC
         private Vector3 _netVelocity;
         [SyncVar]
         private Vector3 _netCoordinates;
-        [SyncVar]
-        private int _netLevel = 1;
-        // TODO: remove anything related to this , it was only a benchmark
-        public readonly SyncList<long> _test = new SyncList<long>();
-
         public Vector3 NetVelocity => _netVelocity;
         public Vector3 NetCoordinates => _netCoordinates;
-        public int NetLevel => _netLevel;
         public Color BodyColor => new Color(_netColor.x, _netColor.y, _netColor.z);
-        public SyncList<long> Test => _test;
         #endregion
 
 
@@ -74,10 +65,6 @@ namespace Minimap.FPC
         public override void OnStartServer()
         {
             base.OnStartServer();
-            for (int i = 0; i < 100; i++)
-            {
-                _test.Add(0);
-            }
         }
 
         public override void OnStartClient()
@@ -146,12 +133,6 @@ namespace Minimap.FPC
         {
             _netVelocity = velocity;
             _netCoordinates = new Vector3(position.x, position.z, position.y);
-
-            _syncRandom.NextBytes(_syncRandomBytes);
-            for (int i = 0; i < 100; i++)
-            {
-                _test[i] = BitConverter.ToInt64(_syncRandomBytes, i * 8);
-            }
         }
 
         /// <summary>
@@ -162,7 +143,7 @@ namespace Minimap.FPC
             _moveInput = _moveAction.ReadValue<Vector2>();
             _isSprinting = _sprintAction.IsPressed();
 
-            _cameraRotationInput = CursorManager.IsLocked ? _cameraLookAction.ReadValue<Vector2>() : Vector2.zero;
+            _cameraRotationInput = Cursor.lockState == CursorLockMode.Locked ? _cameraLookAction.ReadValue<Vector2>() : Vector2.zero;
             _cameraController.InputsListener(_cameraRotationInput);
 
             // _playerPhysics.HandleRotation(_cameraController.HorizontalRotation);

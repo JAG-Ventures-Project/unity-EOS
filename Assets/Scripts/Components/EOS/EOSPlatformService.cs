@@ -20,11 +20,9 @@ namespace EOS
         private PlatformInterface _platformInterface;
         
         public PlatformInterface PlatformInterface => _platformInterface;
-        public ConnectManager ConnectManager { get; private set; }
-        public AuthManager AuthManager { get; private set; }
-        public LobbyManager Lobby { get; private set; }
-        public PlayerDataStorageManager PlayerDataStorage { get; private set; }
         public bool IsInitialized => _platformInterface != null;
+
+        public event Action OnBeforeShutdown;
 
         private static readonly ProfilerMarker s_EosTickMarker = new ProfilerMarker("EOS.PlatformTick");
 
@@ -89,12 +87,7 @@ namespace EOS
             _platformInterface = CreatePlatform(apiKey);
             Assert.IsNotNull(_platformInterface, "[EOSPlatformService] CreatePlatformInterface returned null!");
 
-            ConnectManager = new ConnectManager(_platformInterface);
-            AuthManager = new AuthManager(_platformInterface);
-            Lobby = new LobbyManager(_platformInterface);
-            PlayerDataStorage = new PlayerDataStorageManager(_platformInterface);
-
-            EpicTransport.EOSSDKComponent.SetExternalPlatform(_platformInterface, null, () => IsInitialized && ConnectManager?.LocalProductUserId != null);
+            EpicTransport.EOSSDKComponent.SetExternalPlatform(_platformInterface, null, () => IsInitialized && GetLocalProductUserId() != null);
         }
 
         public Result InitializePlatform(EosApiKey apiKey)
@@ -155,7 +148,7 @@ namespace EOS
 
         public ProductUserId GetLocalProductUserId()
         {
-            return ConnectManager?.LocalProductUserId;
+            return EpicTransport.EOSSDKComponent.LocalUserProductId;
         }
 
         public bool Shutdown()
@@ -169,7 +162,8 @@ namespace EOS
                     EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
                 }
 
-                Lobby?.Dispose();
+                OnBeforeShutdown?.Invoke();
+                EpicTransport.EOSSDKComponent.TriggerShutdown();
 
                 if (_platformInterface != null)
                 {

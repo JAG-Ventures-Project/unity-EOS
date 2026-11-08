@@ -22,7 +22,7 @@ namespace EOS
         private void Awake()
         {
             endGameButton.onClick.AddListener(OnEndGameButtonClicked);
-            _lobby = EOSSDKManager.Instance?.Lobby;
+            _lobby = LobbyManager.Instance;
         }
 
         private void OnDestroy()
@@ -34,7 +34,7 @@ namespace EOS
         {
             endGameButton.interactable = false;
 
-            var lobby = _lobby ?? EOSSDKManager.Instance?.Lobby;
+            var lobby = _lobby ?? LobbyManager.Instance;
 
             // Host/Server check: host resets the match state in EOS lobby and brings all players back
             if (NetworkServer.active)

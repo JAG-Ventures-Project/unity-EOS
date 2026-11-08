@@ -71,6 +71,7 @@ namespace Minimap.FPC
         public override void OnStartServer()
         {
             base.OnStartServer();
+            SetOwner(connectionToClient.identity.transform);
             _lastPosition = transform.position;
             UpdatePetActiveState(_isPetActive);
         }

@@ -226,7 +226,7 @@ namespace EOS.UI.Analytics
             {
                 NetworkClient.Send(new RegisterPlayerNameMessage
                 {
-                    playerName = EOSSDKManager.LocalDisplayName
+                    playerName = EpicTransport.EOSSDKComponent.DisplayName
                 });
             }
         }

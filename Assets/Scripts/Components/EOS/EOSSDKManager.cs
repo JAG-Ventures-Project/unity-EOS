@@ -19,9 +19,13 @@ namespace EOS
 
         public static EOSSDKManager Instance { get; private set; }
 
-        // can't we make this internal and will break after build 
+        // Q: can't we make this internal and will it break after build 
         public static HAuthTicket SteamAuthTicket { get; set; } = HAuthTicket.Invalid;
-        public static string LocalDisplayName { get; set; } = "Player";
+        public static string LocalDisplayName
+        {
+            get => EpicTransport.EOSSDKComponent.DisplayName;
+            set => EpicTransport.EOSSDKComponent.DisplayName = value;
+        }
 
         public EosApiKey EosApiKey
         {
@@ -32,10 +36,6 @@ namespace EOS
         private EOSPlatformService _platformService;
 
         public EOSPlatformService Service => _platformService;
-        public ConnectManager ConnectManager => _platformService?.ConnectManager;
-        public AuthManager AuthManager => _platformService?.AuthManager;
-        public LobbyManager Lobby => _platformService?.Lobby;
-        public PlayerDataStorageManager PlayerDataStorage => _platformService?.PlayerDataStorage;
 
 #if UNITY_EDITOR
         private void OnValidate()

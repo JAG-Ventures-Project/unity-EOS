@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
@@ -11,55 +12,36 @@ public class CursorManager : MonoBehaviour
     [SerializeField] private InputActionReference cancelAction;
     [SerializeField] private InputActionReference clickAction;
 
-    private InputAction _screenClickAction;
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        Assert.IsNotNull(cancelAction, "[CursorManager] Cancel Action is null");
+        Assert.IsNotNull(clickAction, "[CursorManager] Click Action is null");
+    }
+#endif
+
 
     private void Awake()
     {
         Instance = this;
-        InitializeClickAction();
-    }
-
-    private void InitializeClickAction()
-    {
-        if (clickAction != null)
-        {
-            _screenClickAction = clickAction.action;
-        }
-        else
-        {
-            _screenClickAction = new InputAction("ScreenClick", InputActionType.Button);
-            _screenClickAction.AddBinding("<Mouse>/leftButton");
-            _screenClickAction.AddBinding("<Mouse>/rightButton");
-        }
     }
 
     private void OnEnable()
     {
-        if (cancelAction != null)
-        {
-            cancelAction.action.performed += OnCancel;
-            cancelAction.action.Enable();
-        }
+        cancelAction.action.performed += OnCancel;
+        cancelAction.action.Enable();
 
-        if (_screenClickAction != null)
-        {
-            _screenClickAction.performed += OnClickPerformed;
-        }
+        clickAction.action.performed += OnClickPerformed;
+        clickAction.action.Enable();
     }
 
     private void OnDisable()
     {
-        if (cancelAction != null)
-        {
-            cancelAction.action.performed -= OnCancel;
-            cancelAction.action.Disable();
-        }
+        cancelAction.action.performed -= OnCancel;
+        cancelAction.action.Disable();
 
-        if (_screenClickAction != null)
-        {
-            _screenClickAction.performed -= OnClickPerformed;
-            _screenClickAction.Disable();
-        }
+        clickAction.action.performed -= OnClickPerformed;
+        clickAction.action.Disable();
     }
 
     private void Start() => SetCursorLocked(true);
@@ -67,10 +49,6 @@ public class CursorManager : MonoBehaviour
     private void OnDestroy()
     {
         SetCursorLocked(false);
-        if (clickAction == null && _screenClickAction != null)
-        {
-            _screenClickAction.Dispose();
-        }
     }
 
     private void OnCancel(InputAction.CallbackContext ctx) => ToggleCursor();
@@ -93,16 +71,13 @@ public class CursorManager : MonoBehaviour
         Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !locked;
 
-        if (_screenClickAction != null)
+        if (!locked)
         {
-            if (!locked)
-            {
-                _screenClickAction.Enable();
-            }
-            else
-            {
-                _screenClickAction.Disable();
-            }
+            clickAction.action.Enable();
+        }
+        else
+        {
+            clickAction.action.Disable();
         }
     }
 }

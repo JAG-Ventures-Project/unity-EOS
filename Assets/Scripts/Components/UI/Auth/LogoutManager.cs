@@ -26,8 +26,8 @@ namespace EOS
 #endif
         private void Awake() {
             Assert.IsNotNull(EOSSDKManager.Instance, "[LogoutManager] EOSSDKManager.Instance is null! Make sure EOSSDKManager is on a GameObject in the scene and active.");
-            Assert.IsNotNull(EOSSDKManager.Instance.ConnectManager, "[LogoutManager] ConnectManager is null! Check if EOSSDKManager initialized successfully.");
-            Assert.IsNotNull(EOSSDKManager.Instance.AuthManager, "[LogoutManager] AuthManager is null! Check if EOSSDKManager initialized successfully.");
+            Assert.IsNotNull(ConnectManager.Instance, "[LogoutManager] ConnectManager is null! Check if EOSSDKManager initialized successfully.");
+            Assert.IsNotNull(AuthManager.Instance, "[LogoutManager] AuthManager is null! Check if EOSSDKManager initialized successfully.");
             
             logoutButton.onClick.AddListener(Logout);
         }
@@ -35,9 +35,9 @@ namespace EOS
         private void Logout() {
             SetButtonsInteractable(false);
 
-            if (EOSSDKManager.Instance.AuthManager.IsLoggedIn)
+            if (AuthManager.Instance.IsLoggedIn)
             {
-                EOSSDKManager.Instance.AuthManager.Logout(true, (success, error) =>
+                AuthManager.Instance.Logout(true, (success, error) =>
                 {
                     if (!success)
                     {
@@ -62,7 +62,7 @@ namespace EOS
 
         private void FinalizeLogout()
         {
-            EOSSDKManager.Instance.ConnectManager.ResetSession();
+            ConnectManager.Instance.ResetSession();
             AuthPreferences.ClearSession();
             SceneManager.LoadScene(nextSceneName);
         }

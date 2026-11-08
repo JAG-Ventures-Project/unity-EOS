@@ -68,10 +68,8 @@ namespace EOS
 
         private void Awake()
         {
-            Assert.IsNotNull(EOSSDKManager.Instance, "[LobbyUIManager] EOSSDKManager.Instance is null!");
-
-            _lobby = EOSSDKManager.Instance.Lobby;
-            Assert.IsNotNull(_lobby, "[LobbyUIManager] Failed to instantiate LobbyManager.");
+            _lobby = LobbyManager.Instance;
+            Assert.IsNotNull(_lobby, "[LobbyUIManager] Failed to instantiate LobbyManager. Ensure EOS is initialized.");
 
             _actionButtonText = startGameButton.GetComponentInChildren<TextMeshProUGUI>();
             SetPanelState(isInLobby: _lobby.IsInLobby);
@@ -96,6 +94,12 @@ namespace EOS
 
         private void Start()
         {
+            if (EOSNetworkManager.Instance != null)
+            {
+                EOSNetworkManager.Instance.CustomDisplayNameResolver = ResolveLobbyDisplayName;
+                EOSNetworkManager.Instance.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
+                EOSNetworkManager.Instance.OnUnexpectedClientDisconnect += HandleUnexpectedClientDisconnect;
+            }
             if (_lobby != null && _lobby.IsInLobby)
             {
                 RestoreInLobbyUI();
@@ -414,7 +418,7 @@ namespace EOS
             card.transform.SetAsLastSibling();
 
             string playerName = (userId == _lobby.LocalProductUserId)
-                ? EOSSDKManager.LocalDisplayName
+                ? EpicTransport.EOSSDKComponent.DisplayName
                 : _lobby.GetMemberDisplayName(userId);
 
             bool canKick = _lobby.IsLobbyOwner && (userId != _lobby.LocalProductUserId);
@@ -471,6 +475,44 @@ namespace EOS
         private Sprite GetRandomAvatar()
         {
             return playerCardImages[UnityEngine.Random.Range(0, playerCardImages.Count)];
+        }
+
+        private static string ResolveLobbyDisplayName(Mirror.NetworkConnectionToClient conn)
+        {
+            if (conn is Mirror.LocalConnectionToClient || conn.connectionId == 0)
+            {
+                return !string.IsNullOrWhiteSpace(EpicTransport.EOSSDKComponent.DisplayName)
+                    ? EpicTransport.EOSSDKComponent.DisplayName
+                    : "Host";
+            }
+
+            var lobby = LobbyManager.Instance;
+            if (lobby != null && !string.IsNullOrEmpty(conn.address))
+            {
+                ProductUserId userId = ProductUserId.FromString(conn.address);
+                if (userId != null)
+                {
+                    return lobby.GetMemberDisplayName(userId);
+                }
+            }
+
+            return null;
+        }
+
+        private static void HandleUnexpectedClientDisconnect()
+        {
+            var lobby = LobbyManager.Instance;
+            if (lobby != null && lobby.IsInLobby && !lobby.HasGameStarted)
+            {
+                return;
+            }
+
+            if (lobby != null && lobby.IsInLobby)
+            {
+                lobby.LeaveLobby();
+            }
+
+            NotificationManager.Show("Disconnected from server.", NotificationType.Warning);
         }
 
         #endregion
