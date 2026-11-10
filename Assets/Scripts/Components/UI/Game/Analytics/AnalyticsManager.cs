@@ -102,7 +102,25 @@ namespace EOS.UI.Analytics
 
         private void OnTabCanceled(InputAction.CallbackContext ctx)
         {
-            SetMenuOpen(false);
+            if (holdToOpen)
+            {
+                SetMenuOpen(false);
+            }
+        }
+
+        private void Update()
+        {
+            if (holdToOpen && IsMenuOpen)
+            {
+                // Verify whether the tab key is still physically pressed
+                bool isActionPressed = tabAction != null && tabAction.action != null && tabAction.action.IsPressed();
+                bool isKeyPhysicallyPressed = Keyboard.current != null && Keyboard.current.tabKey.isPressed;
+
+                if (!isActionPressed && !isKeyPhysicallyPressed)
+                {
+                    SetMenuOpen(false);
+                }
+            }
         }
 
         public void SetMenuOpen(bool open)

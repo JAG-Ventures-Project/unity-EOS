@@ -9,6 +9,7 @@ using EpicTransport;
 namespace EOS
 {
     [RequireComponent(typeof(EosTransport))]
+    [RequireComponent(typeof(EOSSDKComponent))]
     [DisallowMultipleComponent]
     public class EOSNetworkManager : NetworkManager
     {
@@ -24,6 +25,7 @@ namespace EOS
         public Func<NetworkConnectionToClient, string> CustomDisplayNameResolver { get; set; }
 
         private EosTransport _eosTransport;
+        private EOSSDKComponent _eosSdkComponent;
 
 #if UNITY_EDITOR
 
@@ -31,8 +33,6 @@ namespace EOS
         {
             // We didn't add the pet because it's optional
             Assert.IsNotNull(playerPrefab, "[EOSNetworkManager] Player Prefab is null!");
-            Assert.IsNotNull(offlineScene, "[EOSNetworkManager] Offline Scene is null!");
-            Assert.IsNotNull(onlineScene, "[EOSNetworkManager] Online Scene is null!");
         }
 
 #endif
@@ -41,6 +41,7 @@ namespace EOS
         {
             base.Awake();
             TryGetComponent(out _eosTransport);
+            TryGetComponent(out _eosSdkComponent);
         }
 
         #region Connection Handlers
@@ -49,6 +50,15 @@ namespace EOS
         {
             onlineScene = targetScene;
             StartHost();
+        }
+
+        public override void OnStartHost()
+        {
+            base.OnStartHost();
+            if (!string.IsNullOrEmpty(EOSSDKComponent.LocalUserProductIdString))
+            {
+                GUIUtility.systemCopyBuffer = EOSSDKComponent.LocalUserProductIdString;
+            }
         }
 
         public void StartEosClient(string hostProductUserId)
