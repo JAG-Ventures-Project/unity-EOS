@@ -69,7 +69,6 @@ namespace EOS
 #if UNITY_EDITOR
         private void OnValidate()
         {
-
             TryGetComponent(out _rectTransform);
             TryGetComponent(out _canvasGroup);
             Assert.IsNotNull(_rectTransform, "[FriendsOverlayManager] RectTransform missing.");
@@ -92,14 +91,17 @@ namespace EOS
 
         private void Awake()
         {
+            Canvas rootCanvas = GetComponentInParent<Canvas>();
+            GameObject rootObject = rootCanvas != null ? rootCanvas.gameObject : gameObject;
+
             if (Instance != null && Instance != this)
             {
-                Canvas duplicateCanvas = GetComponentInParent<Canvas>();
-                GameObject toDestroy = duplicateCanvas != null ? duplicateCanvas.gameObject : gameObject;
-                Destroy(toDestroy);
+                DestroyImmediate(rootObject);
                 return;
             }
             Instance = this;
+            rootObject.transform.SetParent(null);
+            DontDestroyOnLoad(rootObject);
 
             LogoutManager.OnLogoutInitiated += HandleLoggedOut;
             AuthManager.OnLoggedOut += HandleLoggedOut;
@@ -206,12 +208,6 @@ namespace EOS
             _friendsService.OnFriendStatusChanged += HandleFriendStatusChanged;
             _lobbyInviteService.OnInviteReceived += HandleLobbyInviteReceived;
             _lobbyInviteService.OnInviteRemoved += HandleLobbyInviteRemoved;
-
-            if (LobbyManager.Instance != null)
-            {
-                LobbyManager.Instance.OnGameStarted -= HandleGameStarted;
-                LobbyManager.Instance.OnGameStarted += HandleGameStarted;
-            }
         }
 
         private void UnsubscribeServices()
@@ -222,11 +218,6 @@ namespace EOS
             _friendsService.OnFriendStatusChanged -= HandleFriendStatusChanged;
             _lobbyInviteService.OnInviteReceived -= HandleLobbyInviteReceived;
             _lobbyInviteService.OnInviteRemoved -= HandleLobbyInviteRemoved;
-
-            if (LobbyManager.Instance != null)
-            {
-                LobbyManager.Instance.OnGameStarted -= HandleGameStarted;
-            }
         }
 
         private void UpdateLocalPlayerHeader()
@@ -503,6 +494,7 @@ namespace EOS
                 return;
             }
 
+            actionsMenu.Hide();
             actionsMenu.ShowForFriend(model, _currentTab, card.transform as RectTransform);
         }
 
@@ -517,6 +509,7 @@ namespace EOS
                 return;
             }
 
+            actionsMenu.Hide();
             actionsMenu.ShowForInvite(invite, card.transform as RectTransform);
         }
 
@@ -586,6 +579,7 @@ namespace EOS
         public void OpenOverlay()
         {
             _isOpen = true;
+            CursorManager.Instance?.SetCursorLocked(false);
             UpdateLocalPlayerHeader();
             RefreshSocialData();
 
@@ -722,15 +716,6 @@ namespace EOS
             GameObject rootObject = canvas != null ? canvas.gameObject : gameObject;
             rootObject.transform.SetParent(null);
             DontDestroyOnLoad(rootObject);
-        }
-
-        // AI implementation: Callback triggered on lobby match start. Only persists UI if AllowJoinInProgress is enabled.
-        private void HandleGameStarted(string hostAddress)
-        {
-            if (LobbyManager.Instance != null && LobbyManager.Instance.AllowJoinInProgress)
-            {
-                PersistForGameScene();
-            }
         }
 
         // AI implementation: Destroys the Friends UI root when logging out to ensure clean lifecycle separation.

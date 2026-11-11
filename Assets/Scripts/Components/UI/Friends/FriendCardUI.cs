@@ -105,7 +105,7 @@ namespace EOS
             };
 
             userNameText.text = string.IsNullOrWhiteSpace(invite.InviterDisplayName) ? "Player" : invite.InviterDisplayName;
-            userCodeText.text = "Lobby Invite";
+            userCodeText.text = !string.IsNullOrEmpty(invite.JoinCode) ? "Lobby Invite" : "Game Invite";
             statusText.text = "Invited you to play";
             statusText.color = inGameColor;
 

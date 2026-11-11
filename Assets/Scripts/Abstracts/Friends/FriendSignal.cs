@@ -13,7 +13,10 @@ namespace EOS
         PresencePong = 6,
         JoinRequest = 7,
         JoinRequestAccepted = 8,
-        JoinRequestDeclined = 9
+        JoinRequestDeclined = 9,
+        GameInvite = 10,
+        GameInviteAccepted = 11,
+        GameInviteDeclined = 12
     }
 
     [Serializable]

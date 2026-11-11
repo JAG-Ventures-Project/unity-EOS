@@ -14,6 +14,7 @@ namespace EOS
         public uint AvailableSlots { get; set; }
         public uint MaxMembers { get; set; }
         public DateTime ReceivedAt { get; set; }
+        public bool IsDirectP2P => !string.IsNullOrEmpty(HostAddress) && string.IsNullOrEmpty(LobbyId);
 
         public bool IsFull => AvailableSlots == 0;
     }

@@ -27,6 +27,8 @@ namespace EOS
         private LobbyInviteModel _targetInvite;
         private FriendsTabType _currentTab;
 
+        public static FriendActionsMenuUI ActiveMenu { get; private set; }
+
         public bool IsOpen => gameObject.activeSelf;
         public FriendModel CurrentTargetFriend => _targetFriend;
         public LobbyInviteModel CurrentTargetInvite => _targetInvite;
@@ -55,6 +57,9 @@ namespace EOS
 
         public void ShowForFriend(FriendModel friend, FriendsTabType tab, RectTransform cardTransform)
         {
+            ActiveMenu.Hide();
+            ActiveMenu = this;
+
             _targetFriend = friend;
             _targetInvite = null;
             _currentTab = tab;
@@ -66,12 +71,16 @@ namespace EOS
 
         public void ShowForInvite(LobbyInviteModel invite, RectTransform cardTransform)
         {
+            ActiveMenu.Hide();
+            ActiveMenu = this;
+
             _targetFriend = null;
             _targetInvite = invite;
             _currentTab = FriendsTabType.Notifications;
 
             ReleaseActiveButtons();
-            AddActionButton("Join Lobby", HandleAcceptLobbyInviteClicked);
+            string acceptLabel = (invite != null && !string.IsNullOrEmpty(invite.JoinCode)) ? "Join Lobby" : "Join Game";
+            AddActionButton(acceptLabel, HandleAcceptLobbyInviteClicked);
             AddActionButton("Decline", HandleDeclineLobbyInviteClicked);
 
             PositionToCard(cardTransform);
@@ -80,8 +89,15 @@ namespace EOS
 
         public void Hide()
         {
+            ActiveMenu = null;
+
             ReleaseActiveButtons();
             gameObject.SetActive(false);
+        }
+
+        private void OnDisable()
+        {
+            ActiveMenu = null;
         }
 
         private void PositionToCard(RectTransform cardTransform)

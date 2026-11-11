@@ -17,12 +17,9 @@ namespace EOS
         private readonly PlatformInterface _platformHandle;
         private readonly ConnectInterface _connectHandle;
         private readonly ICrossPlayFriendsStore _friendsStore;
-        private readonly ILobbyInviteService _inviteService;
+        private ILobbyInviteService _inviteService;
         private readonly IFriendSignalChannel _signalChannel;
-        private readonly ILobby _lobby;
         private IPlatformFriendsProvider _platformProvider;
-
-        private ILobby ActiveLobby => _lobby ?? LobbyManager.Instance;
 
         private readonly List<FriendModel> _allFriends = new();
         private readonly List<FriendModel> _blockedPlayers = new();
@@ -36,7 +33,6 @@ namespace EOS
         private readonly Dictionary<string, string> _peerJoinCode = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, FriendModel> _incomingJoinRequests = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _pendingOutgoingJoinRequests = new(StringComparer.OrdinalIgnoreCase);
-        private string _pendingJoinLobbyCode;
         private float _lastHeartbeatTimer;
         private FriendPresenceState _lastLocalPresence = FriendPresenceState.Offline;
 
@@ -69,9 +65,10 @@ namespace EOS
         {
             var platform = EpicTransport.EOSSDKComponent.PlatformInterface;
             var store = new CrossPlayFriendsStore(PlayerDataStorageManager.Instance);
-            var invites = new LobbyInviteManager(LobbyManager.Instance, store);
             var signals = new EOSFriendSignalChannel();
-            var manager = new FriendsManager(platform, store, invites, signals, LobbyManager.Instance);
+            var invites = new DirectP2PInviteManager(store);
+
+            var manager = new FriendsManager(platform, store, invites, signals);
             return manager;
         }
 
@@ -79,14 +76,12 @@ namespace EOS
             PlatformInterface platformInterface,
             ICrossPlayFriendsStore friendsStore,
             ILobbyInviteService inviteService,
-            IFriendSignalChannel signalChannel = null,
-            ILobby lobby = null)
+            IFriendSignalChannel signalChannel = null)
         {
             _platformHandle = platformInterface;
             _friendsStore = friendsStore;
             _inviteService = inviteService;
             _signalChannel = signalChannel;
-            _lobby = lobby;
 
             Assert.IsNotNull(_platformHandle, "[FriendsManager] PlatformInterface must not be null.");
             Assert.IsNotNull(_friendsStore, "[FriendsManager] ICrossPlayFriendsStore must not be null.");
@@ -107,8 +102,6 @@ namespace EOS
             EOSSDKManager.Instance.Service.OnTick += HandleTick;
             EOSSDKManager.Instance.Service.OnBeforeShutdown -= HandlePlatformShutdown;
             EOSSDKManager.Instance.Service.OnBeforeShutdown += HandlePlatformShutdown;
-
-            LobbyManager.ExternalDisplayNameResolver = ResolveCrossPlayDisplayName;
         }
 
         private LoginProvider GetCurrentPlatform() => LocalPlayerIdentity.CurrentPlatform;
@@ -123,80 +116,6 @@ namespace EOS
             ConfigurePlatformProvider();
             _platformProvider?.Initialize();
             _signalChannel?.Start();
-
-            ILobby lobby = ActiveLobby;
-            if (lobby != null)
-            {
-                lobby.OnLobbyJoined += HandleLobbyPresenceEvent;
-                lobby.OnLobbyLeft += HandleLobbyLeftEvent;
-                lobby.OnPlayerJoined += HandleLobbyPlayerEvent;
-                lobby.OnPlayerLeft += HandleLobbyPlayerEvent;
-                lobby.OnGameStarted += HandleLobbyPresenceEvent;
-                lobby.OnLobbyUpdated += HandleLobbyUpdatedEvent;
-            }
-        }
-
-        private void HandleLobbyPresenceEvent(string hostAddress)
-        {
-            UpdateLobbyPresence();
-        }
-
-        private void HandleLobbyLeftEvent()
-        {
-            UpdateLobbyPresence();
-        }
-
-        private void HandleLobbyPlayerEvent(ProductUserId _)
-        {
-            UpdateLobbyPresence();
-        }
-
-        private void HandleLobbyUpdatedEvent()
-        {
-            UpdateLobbyPresence();
-        }
-
-        // AI Implementation: Updates in-lobby presence in-place without discarding existing friend models
-        private void UpdateLobbyPresence()
-        {
-            ILobby activeLobby = ActiveLobby;
-            bool inLobby = activeLobby != null && activeLobby.IsInLobby;
-            bool gameStarted = inLobby && activeLobby.HasGameStarted;
-
-            var lobbyMemberPuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (inLobby)
-            {
-                List<ProductUserId> members = activeLobby.GetCurrentMemberUserIds();
-                if (members != null)
-                {
-                    for (int i = 0; i < members.Count; i++)
-                    {
-                        if (members[i] != null)
-                        {
-                            string puid = members[i].ToString();
-                            lobbyMemberPuids.Add(puid);
-                            _onlinePuids[puid] = DateTime.UtcNow;
-                        }
-                    }
-                }
-            }
-
-            for (int i = 0; i < _allFriends.Count; i++)
-            {
-                FriendModel friend = _allFriends[i];
-                string key = friend.ProductUserId;
-                if (!string.IsNullOrEmpty(key) && lobbyMemberPuids.Contains(key))
-                {
-                    friend.Presence = gameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
-                }
-                else if (friend.Presence == FriendPresenceState.InLobby || friend.Presence == FriendPresenceState.InMatch)
-                {
-                    friend.Presence = FriendPresenceState.Online;
-                }
-            }
-
-            _allFriends.Sort(SortFriendsPresenceFirst);
-            OnFriendsListUpdated?.Invoke();
         }
 
         private void ConfigurePlatformProvider()
@@ -413,11 +332,6 @@ namespace EOS
             {
                 return FriendPresenceState.InMatch;
             }
-            ILobby lobby = ActiveLobby;
-            if (lobby != null && lobby.IsInLobby)
-            {
-                return lobby.HasGameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
-            }
             return FriendPresenceState.Online;
         }
 
@@ -434,9 +348,9 @@ namespace EOS
                 targetPuid = targetPuid,
                 createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 presenceState = (int)GetLocalPresenceState(),
-                lobbyId = ActiveLobby?.CurrentLobbyId,
-                hostAddress = ActiveLobby?.CurrentHostAddress ?? LocalProductUserIdString,
-                joinCode = ActiveLobby?.CurrentJoinCode
+                lobbyId = null,
+                hostAddress = LocalProductUserIdString,
+                joinCode = null
             };
             _signalChannel.Send(targetPuid, ping);
         }
@@ -476,34 +390,6 @@ namespace EOS
                 });
             }
 
-            ILobby activeLobby = ActiveLobby;
-            var lobbyMemberPuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var lobbyMemberNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            bool inLobby = activeLobby != null && activeLobby.IsInLobby;
-            bool gameStarted = inLobby && activeLobby.HasGameStarted;
-
-            if (inLobby)
-            {
-                List<ProductUserId> members = activeLobby.GetCurrentMemberUserIds();
-                if (members != null)
-                {
-                    for (int m = 0; m < members.Count; m++)
-                    {
-                        if (members[m] != null)
-                        {
-                            string puidStr = members[m].ToString();
-                            lobbyMemberPuids.Add(puidStr);
-                            _onlinePuids[puidStr] = DateTime.UtcNow;
-                            string name = activeLobby.GetMemberDisplayName(members[m]);
-                            if (!string.IsNullOrWhiteSpace(name) && !name.Equals("Player", StringComparison.OrdinalIgnoreCase))
-                            {
-                                lobbyMemberNames.Add(name);
-                            }
-                        }
-                    }
-                }
-            }
-
             var addedKeys = new HashSet<string>();
 
             // 2. Process Native Platform Friends
@@ -532,13 +418,6 @@ namespace EOS
                 if (!string.IsNullOrEmpty(puid) && _peerPresence.TryGetValue(puid, out FriendPresenceState peerState) && _onlinePuids.TryGetValue(puid, out DateTime puidSeen) && (DateTime.UtcNow - puidSeen).TotalSeconds < 120)
                 {
                     presence = peerState;
-                }
-                else if (inLobby && (
-                    (!string.IsNullOrEmpty(pf.PlatformUserId) && lobbyMemberPuids.Contains(pf.PlatformUserId)) ||
-                    (!string.IsNullOrEmpty(puid) && lobbyMemberPuids.Contains(puid)) ||
-                    (!string.IsNullOrEmpty(pf.DisplayName) && lobbyMemberNames.Contains(pf.DisplayName))))
-                {
-                    presence = gameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
                 }
                 else if (!string.IsNullOrEmpty(puid) && _onlinePuids.TryGetValue(puid, out DateTime lastSeen) && (DateTime.UtcNow - lastSeen).TotalSeconds < 120)
                 {
@@ -608,12 +487,6 @@ namespace EOS
                 if (!string.IsNullOrEmpty(cpPuid) && _peerPresence.TryGetValue(cpPuid, out FriendPresenceState peerState) && _onlinePuids.TryGetValue(cpPuid, out DateTime puidSeen) && (DateTime.UtcNow - puidSeen).TotalSeconds < 120)
                 {
                     presence = peerState;
-                }
-                else if (inLobby && (
-                    (!string.IsNullOrEmpty(cpPuid) && lobbyMemberPuids.Contains(cpPuid)) ||
-                    (!string.IsNullOrEmpty(cf.displayName) && lobbyMemberNames.Contains(cf.displayName))))
-                {
-                    presence = gameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
                 }
                 else if (!string.IsNullOrEmpty(cpPuid) && _onlinePuids.TryGetValue(cpPuid, out DateTime lastSeen) && (DateTime.UtcNow - lastSeen).TotalSeconds < 120)
                 {
@@ -1279,6 +1152,82 @@ namespace EOS
             _inviteService.InviteFriendToLobby(targetUserId, onComplete);
         }
 
+        public void SendDirectGameInvite(string targetPuid, Action<bool, string> onComplete = null)
+        {
+            if (string.IsNullOrEmpty(targetPuid))
+            {
+                onComplete?.Invoke(false, "Target player ID is invalid.");
+                return;
+            }
+
+            if (_friendsStore != null && _friendsStore.IsBlocked(targetPuid))
+            {
+                onComplete?.Invoke(false, "Cannot invite a blocked player.");
+                return;
+            }
+
+            // Automatically start the Mirror game host if not already active
+            if (EOSNetworkManager.Instance != null && !Mirror.NetworkServer.active)
+            {
+                EOSNetworkManager.Instance.StartEosHost();
+            }
+
+            string myPuid = LocalProductUserIdString;
+            if (string.IsNullOrEmpty(myPuid))
+            {
+                onComplete?.Invoke(false, "Local user ProductUserId is unavailable.");
+                return;
+            }
+
+            var signal = new FriendSignal
+            {
+                id = Guid.NewGuid().ToString("N"),
+                type = FriendSignalType.GameInvite,
+                senderName = EOSSDKManager.LocalDisplayName ?? "Player",
+                senderPlatform = (int)GetCurrentPlatform(),
+                targetPuid = targetPuid,
+                createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                presenceState = (int)FriendPresenceState.InMatch,
+                lobbyId = null,
+                hostAddress = myPuid,
+                joinCode = null
+            };
+
+            _signalChannel?.Send(targetPuid, signal);
+            NotificationManager.Show("Game invite sent!", NotificationType.Normal);
+            onComplete?.Invoke(true, "Game invite sent!");
+        }
+
+        public void SendDirectInviteAccepted(string targetPuid)
+        {
+            if (string.IsNullOrEmpty(targetPuid)) return;
+            var signal = new FriendSignal
+            {
+                id = Guid.NewGuid().ToString("N"),
+                type = FriendSignalType.GameInviteAccepted,
+                senderName = EOSSDKManager.LocalDisplayName ?? "Player",
+                senderPlatform = (int)GetCurrentPlatform(),
+                targetPuid = targetPuid,
+                createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+            _signalChannel?.Send(targetPuid, signal);
+        }
+
+        public void SendDirectInviteDeclined(string targetPuid)
+        {
+            if (string.IsNullOrEmpty(targetPuid)) return;
+            var signal = new FriendSignal
+            {
+                id = Guid.NewGuid().ToString("N"),
+                type = FriendSignalType.GameInviteDeclined,
+                senderName = EOSSDKManager.LocalDisplayName ?? "Player",
+                senderPlatform = (int)GetCurrentPlatform(),
+                targetPuid = targetPuid,
+                createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+            _signalChannel?.Send(targetPuid, signal);
+        }
+
         public bool IsPendingJoinRequestTarget(string puid) => !string.IsNullOrEmpty(puid) && _pendingOutgoingJoinRequests.Contains(puid);
         public void ClearPendingJoinRequest(string puid) { if (!string.IsNullOrEmpty(puid)) _pendingOutgoingJoinRequests.Remove(puid); }
 
@@ -1431,6 +1380,12 @@ namespace EOS
         {
             _incomingJoinRequests.Remove(productUserId);
 
+            // Direct P2P Mode: auto-start host if not active and send host address directly
+            if (EOSNetworkManager.Instance != null && !Mirror.NetworkServer.active)
+            {
+                EOSNetworkManager.Instance.StartEosHost();
+            }
+
             var signal = new FriendSignal
             {
                 id = Guid.NewGuid().ToString("N"),
@@ -1440,18 +1395,10 @@ namespace EOS
                 targetPuid = productUserId,
                 createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 presenceState = (int)GetLocalPresenceState(),
-                lobbyId = ActiveLobby?.CurrentLobbyId,
-                hostAddress = ActiveLobby?.CurrentHostAddress ?? LocalProductUserIdString,
-                joinCode = ActiveLobby?.CurrentJoinCode
+                hostAddress = LocalProductUserIdString
             };
 
             _signalChannel?.Send(productUserId, signal);
-
-            ProductUserId targetPuidObj = ProductUserId.FromString(productUserId);
-            if (targetPuidObj != null && targetPuidObj.IsValid() && ActiveLobby != null && ActiveLobby.IsInLobby)
-            {
-                ActiveLobby.SendInvite(targetPuidObj);
-            }
 
             BuildUnifiedFriendsList();
             OnFriendsListUpdated?.Invoke();
@@ -1579,9 +1526,9 @@ namespace EOS
                         targetPuid = senderPuid,
                         createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                         presenceState = (int)GetLocalPresenceState(),
-                        lobbyId = ActiveLobby?.CurrentLobbyId,
-                        hostAddress = ActiveLobby?.CurrentHostAddress ?? LocalProductUserIdString,
-                        joinCode = ActiveLobby?.CurrentJoinCode
+                        lobbyId = null,
+                        hostAddress = LocalProductUserIdString,
+                        joinCode = null
                     };
                     _signalChannel?.Send(senderPuid, pong);
                     BuildUnifiedFriendsList();
@@ -1616,19 +1563,7 @@ namespace EOS
                 case FriendSignalType.JoinRequestAccepted:
                     NotificationManager.Show($"{signal.senderName} accepted your join request! Joining...", NotificationType.Normal);
                     ClearPendingJoinRequest(senderPuid);
-                    if (!string.IsNullOrEmpty(signal.joinCode) && ActiveLobby != null)
-                    {
-                        if (ActiveLobby.IsInLobby)
-                        {
-                            _pendingJoinLobbyCode = signal.joinCode;
-                            ActiveLobby.LeaveLobby(HandleLeaveBeforeJoiningAcceptedLobby);
-                        }
-                        else
-                        {
-                            ActiveLobby.JoinLobbyByCode(signal.joinCode);
-                        }
-                    }
-                    else if (!string.IsNullOrEmpty(signal.hostAddress))
+                    if (!string.IsNullOrEmpty(signal.hostAddress))
                     {
                         FriendsOverlayManager.Instance?.PersistForGameScene();
                         EOSNetworkManager.Instance?.StartEosClient(signal.hostAddress);
@@ -1638,16 +1573,44 @@ namespace EOS
                 case FriendSignalType.JoinRequestDeclined:
                     NotificationManager.Show($"{signal.senderName} declined your join request.", NotificationType.Warning);
                     break;
-            }
-        }
 
-        private void HandleLeaveBeforeJoiningAcceptedLobby(bool success)
-        {
-            string code = _pendingJoinLobbyCode;
-            _pendingJoinLobbyCode = null;
-            if (!string.IsNullOrEmpty(code) && ActiveLobby != null)
-            {
-                ActiveLobby.JoinLobbyByCode(code);
+                case FriendSignalType.GameInvite:
+                    if (_friendsStore != null && _friendsStore.IsBlocked(senderPuid)) return;
+
+                    string inviterName = string.IsNullOrWhiteSpace(signal.senderName) ? "Player" : signal.senderName;
+                    if (_friendsStore != null && (inviterName == "Player" || string.IsNullOrWhiteSpace(inviterName)))
+                    {
+                        if (_friendsStore.TryGetFriend(senderPuid, out CrossPlayFriendEntry friend))
+                        {
+                            inviterName = friend.displayName;
+                        }
+                    }
+
+                    var directInvite = new LobbyInviteModel
+                    {
+                        InviteId = string.IsNullOrEmpty(signal.id) ? Guid.NewGuid().ToString("N") : signal.id,
+                        LobbyId = null,
+                        HostAddress = !string.IsNullOrEmpty(signal.hostAddress) ? signal.hostAddress : senderPuid,
+                        JoinCode = null,
+                        InviterDisplayName = inviterName,
+                        InviterUserId = ProductUserId.FromString(senderPuid),
+                        AvailableSlots = 4,
+                        MaxMembers = 4,
+                        ReceivedAt = DateTime.UtcNow
+                    };
+
+                    (_inviteService as DirectP2PInviteManager)?.RegisterDirectInvite(directInvite);
+                    BuildUnifiedFriendsList();
+                    OnFriendsListUpdated?.Invoke();
+                    break;
+
+                case FriendSignalType.GameInviteAccepted:
+                    NotificationManager.Show($"{signal.senderName} accepted your game invite and is joining!", NotificationType.Normal);
+                    break;
+
+                case FriendSignalType.GameInviteDeclined:
+                    NotificationManager.Show($"{signal.senderName} declined your game invite.", NotificationType.Warning);
+                    break;
             }
         }
 
@@ -1717,17 +1680,6 @@ namespace EOS
         {
             _isInitialized = false;
 
-            ILobby lobby = ActiveLobby;
-            if (lobby != null)
-            {
-                lobby.OnLobbyJoined -= HandleLobbyPresenceEvent;
-                lobby.OnLobbyLeft -= HandleLobbyLeftEvent;
-                lobby.OnPlayerJoined -= HandleLobbyPlayerEvent;
-                lobby.OnPlayerLeft -= HandleLobbyPlayerEvent;
-                lobby.OnGameStarted -= HandleLobbyPresenceEvent;
-                lobby.OnLobbyUpdated -= HandleLobbyUpdatedEvent;
-            }
-
             _signalChannel?.Stop();
             _platformProvider?.Shutdown();
             _platformProvider = null;
@@ -1747,13 +1699,11 @@ namespace EOS
             EOSSDKManager.Instance.Service.OnTick -= HandleTick;
             EOSSDKManager.Instance.Service.OnBeforeShutdown -= HandlePlatformShutdown;
 
-            if (LobbyManager.ExternalDisplayNameResolver == ResolveCrossPlayDisplayName)
+            if (_signalChannel != null)
             {
-                LobbyManager.ExternalDisplayNameResolver = null;
+                _signalChannel.OnSignalReceived -= OnSignalReceived;
+                _signalChannel.OnSignalAcknowledged -= OnSignalAcknowledged;
             }
-
-            _signalChannel.OnSignalReceived -= OnSignalReceived;
-            _signalChannel.OnSignalAcknowledged -= OnSignalAcknowledged;
 
             _inviteService?.Dispose();
 

@@ -168,7 +168,7 @@ MonoBehaviour:
   epicGamesLoginButton: {fileID: 5674211530461555687}
   steamLoginButton: {fileID: 5674211530461555686}
   rememberAccountToggle: {fileID: 5674211530461555685}
-  nextSceneName: Lobby
+  nextSceneName: Menu
   nextScene: {fileID: 102900000, guid: a153af187e3022d40b83dd4ca0d2844a, type: 3}
 --- !u!1 &258532670
 GameObject:
@@ -805,7 +805,7 @@ PrefabInstance:
       objectReference: {fileID: 102900000, guid: a153af187e3022d40b83dd4ca0d2844a, type: 3}
     - target: {fileID: 5533216340149664855, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
       propertyPath: nextSceneName
-      value: Lobby
+      value: Menu
       objectReference: {fileID: 0}
     - target: {fileID: 8530643539590587193, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
       propertyPath: m_Pivot.x

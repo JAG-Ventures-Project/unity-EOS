@@ -30,8 +30,8 @@ namespace EOS.UI.Analytics
         }
 
         [Header("Settings")]
-        [Tooltip("Interval in seconds between ping broadcasts from host to clients.")]
-        [SerializeField] private float updateInterval = 5.0f;
+        [SerializeField] private float updateInterval = 2.0f;
+        [SerializeField] private bool includeHostInList = true;
 
         public float UpdateInterval => updateInterval;
 
@@ -40,6 +40,7 @@ namespace EOS.UI.Analytics
         private readonly Dictionary<int, string> _playerNames = new Dictionary<int, string>();
         private List<PlayerPingData> _cachedPings = new List<PlayerPingData>();
         private Coroutine _broadcastCoroutine;
+        private bool _hasSentName;
 
         public IReadOnlyList<PlayerPingData> LatestPings => _cachedPings;
 
@@ -70,14 +71,14 @@ namespace EOS.UI.Analytics
 
             StopBroadcastRoutine();
             _cachedPings.Clear();
+            _hasSentName = false;
         }
 
         private void Start()
         {
-            // In GameScene, all players are already connected
+            RegisterHandlers();
             SendClientRegisterName();
 
-            // Only the host runs the server broadcast routine
             if (NetworkServer.active)
             {
                 StartBroadcastRoutine();
@@ -108,6 +109,7 @@ namespace EOS.UI.Analytics
 
         private void HandleClientDisconnected()
         {
+            _hasSentName = false;
             _cachedPings.Clear();
             OnPingsUpdated?.Invoke(_cachedPings);
         }
@@ -217,6 +219,7 @@ namespace EOS.UI.Analytics
 
         private void HandleClientConnected()
         {
+            _hasSentName = false;
             SendClientRegisterName();
         }
 
@@ -228,6 +231,7 @@ namespace EOS.UI.Analytics
                 {
                     playerName = EpicTransport.EOSSDKComponent.DisplayName
                 });
+                _hasSentName = true;
             }
         }
 

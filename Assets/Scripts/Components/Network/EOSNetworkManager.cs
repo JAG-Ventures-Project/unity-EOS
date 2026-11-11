@@ -53,11 +53,71 @@ namespace EOS
 
         public void StartEosClient(string hostProductUserId)
         {
-            if (NetworkClient.active || NetworkClient.isConnected)
+            if (string.IsNullOrEmpty(hostProductUserId))
             {
-                Debug.LogWarning("[EOSNetworkManager] StartEosClient called while NetworkClient is already active or connected. Ignoring duplicate connect.");
+                Debug.LogWarning("[EOSNetworkManager] StartEosClient called with null or empty hostProductUserId.");
                 return;
             }
+
+            if (NetworkServer.active || NetworkClient.active)
+            {
+                StartCoroutine(SwitchHostRoutine(hostProductUserId));
+                return;
+            }
+
+            networkAddress = hostProductUserId;
+            StartClient();
+        }
+
+        public void ConnectToHost(string hostProductUserId) => StartEosClient(hostProductUserId);
+
+        private System.Collections.IEnumerator SwitchHostRoutine(string hostProductUserId)
+        {
+            _isVoluntaryDisconnect = true;
+
+            string savedOfflineScene = offlineScene;
+            offlineScene = string.Empty;
+
+            try
+            {
+                if (NetworkServer.active && NetworkClient.isConnected)
+                {
+                    StopHost();
+                }
+                else if (NetworkClient.active)
+                {
+                    StopClient();
+                }
+                else if (NetworkServer.active)
+                {
+                    StopServer();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[EOSNetworkManager] Exception while stopping previous network session: {ex.Message}");
+            }
+
+            // Wait for Mirror and transport to cleanly finish shutting down
+            float timeout = Time.unscaledTime + 2.0f;
+            while ((NetworkClient.active || NetworkServer.active) && Time.unscaledTime < timeout)
+            {
+                yield return null;
+            }
+
+            if (NetworkClient.active)
+            {
+                NetworkClient.Shutdown();
+            }
+            if (NetworkServer.active)
+            {
+                NetworkServer.Shutdown();
+            }
+
+            yield return null;
+
+            offlineScene = savedOfflineScene;
+            _isVoluntaryDisconnect = false;
 
             networkAddress = hostProductUserId;
             StartClient();
@@ -142,6 +202,18 @@ namespace EOS
         {
             base.OnStopClient();
             _isVoluntaryDisconnect = false;
+        }
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+            _spawnedPets.Clear();
+
+            if (string.IsNullOrEmpty(networkSceneName) || networkSceneName == offlineScene)
+            {
+                string activePath = SceneManager.GetActiveScene().path;
+                networkSceneName = !string.IsNullOrEmpty(activePath) ? activePath : SceneManager.GetActiveScene().name;
+            }
         }
 
         public override void OnStopServer()
