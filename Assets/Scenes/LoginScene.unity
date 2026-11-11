@@ -160,7 +160,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 42831502}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 359d5134e47f0a640a737e5992593735, type: 3}
+  m_Script: {fileID: 11500000, guid: 5b56b123e42f36648b342f618ddcda68, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EOS.EOSLoginManager
   playerName: {fileID: 5674211530461555689}
@@ -886,6 +886,10 @@ PrefabInstance:
     - target: {fileID: 8530643539590587193, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9179551859119214044, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
+      value: 
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 5533216340149664855, guid: 094c1a4b6e695184d9ca34cdb201c051, type: 3}

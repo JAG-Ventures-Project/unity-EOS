@@ -9,6 +9,7 @@ namespace EOS
     {
         string CurrentLobbyId { get; }
         string CurrentJoinCode { get; }
+        string CurrentHostAddress { get; }
         int CurrentMemberCount { get; }
         bool IsInLobby { get; }
         bool IsLobbyOwner { get; }
@@ -17,6 +18,7 @@ namespace EOS
         bool HasGameStarted { get; }
         bool AllowJoinInProgress { get; set; }
         ProductUserId LocalProductUserId { get; }
+        bool IsLocalReady { get; }
         event Action<string> OnLobbyCreated;
         event Action<string> OnLobbyJoined;
         event Action OnLobbyLeft;
@@ -35,8 +37,12 @@ namespace EOS
         void LeaveLobby(Action<bool> onComplete = null);
         void StartGame(Action<bool, string> onComplete = null);
         void SetReadyStatus(bool isReady, Action<bool, string> onComplete = null);
+        void ToggleReadyStatus(Action<bool, string> onComplete = null);
+        void ResetLocalReadyStatus(Action<bool, string> onComplete = null);
         void SetLocalMemberDisplayName(string displayName, Action<bool, string> onComplete = null);
         void ResetMatchState(Action<bool, string> onComplete = null);
+        string ResolveDisplayName(string address);
+        void HandleNetworkDisconnect();
         bool UpdateAndCheckReadyStatus();
         List<ProductUserId> GetCurrentMemberUserIds();
         string GetMemberDisplayName(ProductUserId userId);

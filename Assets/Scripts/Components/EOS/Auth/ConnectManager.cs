@@ -3,6 +3,7 @@ using UnityEngine;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Connect;
 using Epic.OnlineServices.Platform;
+using Steamworks;
 
 namespace EOS
 {
@@ -16,7 +17,12 @@ namespace EOS
 
         public ProductUserId LocalProductUserId { get; private set; } = null;
         public bool IsLoggedIn => LocalProductUserId != null;
+        public static event Action<ProductUserId> OnLoginSuccess;
         private readonly ConnectInterface _connectInterface;
+
+        private Callback<GetTicketForWebApiResponse_t> _steamTicketCallback;
+        private Action<bool, string> _pendingSteamLoginCallback;
+        private bool _pendingSteamRememberMe;
 
         public ConnectManager(PlatformInterface platformInterface = null)
         {
@@ -25,11 +31,24 @@ namespace EOS
             EpicTransport.EOSSDKComponent.OnShutdown += () => _instance = null;
         }
 
-        /// <summary>
-        /// Logs in as a Guest using the local machine's Device ID.
-        /// </summary>
-        public void LoginAsGuest(string displayName, Action<bool, string> onComplete)
+        public void CancelSteamTicket()
         {
+            if (EOSSDKManager.SteamAuthTicket != HAuthTicket.Invalid && SteamManager.Initialized)
+            {
+                SteamUser.CancelAuthTicket(EOSSDKManager.SteamAuthTicket);
+                EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
+            }
+        }
+
+        /// <summary>
+        /// Logs in as a Guest using the local machine's Device ID and updates AuthPreferences.
+        /// </summary>
+        public void LoginAsGuest(string displayName, bool rememberMe, Action<bool, string> onComplete)
+        {
+            CancelSteamTicket();
+
+            string cleanName = string.IsNullOrWhiteSpace(displayName) ? "Guest" : displayName.Trim();
+
             var createDeviceIdOptions = new CreateDeviceIdOptions
             {
                 DeviceModel = SystemInfo.deviceModel ?? "PC Windows"
@@ -37,35 +56,95 @@ namespace EOS
 
             _connectInterface.CreateDeviceId(createDeviceIdOptions, null, (createCb) =>
             {
-                // make sure the device has an ID and it's not a duplicate , we call this becasue the network call can fail
                 if (createCb.ResultCode != Result.Success && createCb.ResultCode != Result.DuplicateNotAllowed)
                 {
                     CompleteOperation(onComplete, false, $"CreateDeviceId failed: {createCb.ResultCode}");
                     return;
                 }
-                PerformConnectLogin(ExternalCredentialType.DeviceidAccessToken, null, displayName, onComplete);
-            });
-        } 
-        
-        // runs once per machine life time
-        private void CreateNewConnectUser(ContinuanceToken continuanceToken, Action<bool, string> onComplete)
-        {
-            var createUserOptions = new CreateUserOptions
-            {
-                ContinuanceToken = continuanceToken
-            };
-            _connectInterface.CreateUser(createUserOptions, null, (createCb) =>
-            {
-                if (createCb.ResultCode == Result.Success)
+
+                PerformConnectLogin(ExternalCredentialType.DeviceidAccessToken, null, cleanName, (success, error) =>
                 {
-                    LocalProductUserId = createCb.LocalUserId;
-                    EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
-                    Debug.Log($"[ConnectManager] Created new EOS user! PUID: {LocalProductUserId}");
-                    CompleteOperation(onComplete, true);
+                    if (success)
+                    {
+                        EpicTransport.EOSSDKComponent.DisplayName = cleanName;
+                        if (rememberMe)
+                        {
+                            AuthPreferences.LastLoginProvider = LoginProvider.Guest;
+                            AuthPreferences.LastGuestName = cleanName;
+                        }
+                        else
+                        {
+                            AuthPreferences.LastLoginProvider = LoginProvider.None;
+                        }
+                    }
+
+                    onComplete?.Invoke(success, error);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Logs in as a Guest without persisting remember-me preference.
+        /// </summary>
+        public void LoginAsGuest(string displayName, Action<bool, string> onComplete)
+        {
+            LoginAsGuest(displayName, false, onComplete);
+        }
+
+        /// <summary>
+        /// Requests Steam Web API ticket, retrieves PersonaName, and performs Connect login.
+        /// </summary>
+        public void LoginWithSteam(bool rememberMe, Action<bool, string> onComplete)
+        {
+            if (!SteamManager.Initialized)
+            {
+                CompleteOperation(onComplete, false, "Steam is not open or initialized. Please make sure Steam is running.");
+                return;
+            }
+
+            _pendingSteamRememberMe = rememberMe;
+            _pendingSteamLoginCallback = onComplete;
+
+            _steamTicketCallback ??= Callback<GetTicketForWebApiResponse_t>.Create(OnSteamTicketReceived);
+
+            HAuthTicket ticket = SteamUser.GetAuthTicketForWebApi("epiconlineservices");
+            if (ticket == HAuthTicket.Invalid)
+            {
+                CompleteOperation(onComplete, false, "Failed to request Steam Web API ticket!");
+                return;
+            }
+
+            EOSSDKManager.SteamAuthTicket = ticket;
+        }
+
+        private void OnSteamTicketReceived(GetTicketForWebApiResponse_t result)
+        {
+            var callback = _pendingSteamLoginCallback;
+            _pendingSteamLoginCallback = null;
+
+            if (result.m_eResult != EResult.k_EResultOK)
+            {
+                CancelSteamTicket();
+                callback?.Invoke(false, $"Steam ticket failed: {result.m_eResult}");
+                return;
+            }
+
+            byte[] ticketBytes = result.m_rgubTicket;
+            string ticketHex = BitConverter.ToString(ticketBytes, 0, (int)result.m_cubTicket).Replace("-", "");
+            string steamName = SteamFriends.GetPersonaName();
+
+            LoginWithSteam(ticketHex, steamName, (success, error) =>
+            {
+                if (success)
+                {
+                    EpicTransport.EOSSDKComponent.DisplayName = steamName;
+                    AuthPreferences.LastLoginProvider = _pendingSteamRememberMe ? LoginProvider.Steam : LoginProvider.None;
+                    callback?.Invoke(true, null);
                 }
                 else
                 {
-                    CompleteOperation(onComplete, false, $"CreateUser failed: {createCb.ResultCode}");
+                    CancelSteamTicket();
+                    callback?.Invoke(false, error);
                 }
             });
         }
@@ -90,6 +169,30 @@ namespace EOS
             PerformConnectLogin(ExternalCredentialType.Epic, epicAuthToken, null, onComplete);
         }
 
+        // runs once per machine life time
+        private void CreateNewConnectUser(ContinuanceToken continuanceToken, Action<bool, string> onComplete)
+        {
+            var createUserOptions = new CreateUserOptions
+            {
+                ContinuanceToken = continuanceToken
+            };
+            _connectInterface.CreateUser(createUserOptions, null, (createCb) =>
+            {
+                if (createCb.ResultCode == Result.Success)
+                {
+                    LocalProductUserId = createCb.LocalUserId;
+                    EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
+                    Debug.Log($"[ConnectManager] Created new EOS user! PUID: {LocalProductUserId}");
+                    OnLoginSuccess?.Invoke(LocalProductUserId);
+                    CompleteOperation(onComplete, true);
+                }
+                else
+                {
+                    CompleteOperation(onComplete, false, $"CreateUser failed: {createCb.ResultCode}");
+                }
+            });
+        }
+
         private void PerformConnectLogin(ExternalCredentialType credentialType, string token, string displayName, Action<bool, string> onComplete)
         {
             var loginOptions = new LoginOptions
@@ -97,7 +200,7 @@ namespace EOS
                 Credentials = new Credentials
                 {
                     Type = credentialType,
-                    Token = token // null if device id , hex string for steam
+                    Token = token
                 },
                 
                 UserLoginInfo = credentialType == ExternalCredentialType.DeviceidAccessToken
@@ -107,21 +210,19 @@ namespace EOS
 
             _connectInterface.Login(loginOptions, null, (loginCb) =>
             {
-                // already has an account
                 if (loginCb.ResultCode == Result.Success)
                 {
                     LocalProductUserId = loginCb.LocalUserId;
                     EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
                     Debug.Log($"[ConnectManager] {credentialType} login success! PUID: {LocalProductUserId}");
+                    OnLoginSuccess?.Invoke(LocalProductUserId);
                     CompleteOperation(onComplete, true);
                 }
-                // first time on this pc (creats new account)
                 else if (loginCb.ResultCode == Result.InvalidUser)
                 {
                     Debug.Log($"[ConnectManager] First time login with {credentialType}: Creating new user with ContinuanceToken...");
                     CreateNewConnectUser(loginCb.ContinuanceToken, onComplete);
                 }
-                // other error (e.g. Network Disconnected)
                 else
                 {
                     CompleteOperation(onComplete, false, $"Connect Login failed: {loginCb.ResultCode}");
@@ -131,6 +232,7 @@ namespace EOS
 
         public void ResetSession()
         {
+            CancelSteamTicket();
             LocalProductUserId = null;
             EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(null);
             Debug.Log("[ConnectManager] Connect session reset.");

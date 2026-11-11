@@ -35,9 +35,6 @@ namespace EOS
         private EOSPlatformService _platformService;
 
         public EOSPlatformService Service => _platformService;
-        public CrossPlayFriendsStore CrossPlayStore => _platformService?.CrossPlayStore;
-        public LobbyInviteManager LobbyInvites => _platformService?.LobbyInvites;
-        public FriendsManager Friends => _platformService?.Friends;
 
 #if UNITY_EDITOR
         private void OnValidate()

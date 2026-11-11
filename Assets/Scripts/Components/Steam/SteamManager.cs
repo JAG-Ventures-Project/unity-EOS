@@ -1,75 +1,80 @@
 using UnityEngine;
 using Steamworks;
 
-[DisallowMultipleComponent]
-public class SteamManager : MonoBehaviour
+namespace EOS
 {
-    private static SteamManager s_instance;
-    private static bool s_everInitialized;
-
-    public static bool Initialized => s_instance != null && s_everInitialized;
-
-    private void Awake()
+    // Wraps the Steamworks.NET runtime lifecycle, initializing the native Steam API,
+    // handling frame callback dispatching via SteamAPI.RunCallbacks(), and cleanly shutting down on teardown.
+    [DisallowMultipleComponent]
+    public class SteamManager : MonoBehaviour
     {
-        if (s_instance != null)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        private static SteamManager s_instance;
+        private static bool s_everInitialized;
 
-        s_instance = this;
+        public static bool Initialized => s_instance != null && s_everInitialized;
 
-        if (!Packsize.Test())
+        private void Awake()
         {
-            Debug.LogError("[SteamManager] Packsize Test returned false, the wrong version of Steamworks.NET is being run in this platform.");
-        }
-
-        if (!DllCheck.Test())
-        {
-            Debug.LogError("[SteamManager] DllCheck Test returned false, one or more of the Steamworks binaries seems to be the wrong version.");
-        }
-
-        try
-        {
-            if (SteamAPI.RestartAppIfNecessary(AppId_t.Invalid))
+            if (s_instance != null)
             {
-                Application.Quit();
+                Destroy(gameObject);
                 return;
             }
-        }
-        catch (System.DllNotFoundException e)
-        {
-            Debug.LogError("[SteamManager] Could not load [lib]steam_api.dll/so/dylib: " + e);
-            return;
+
+            s_instance = this;
+
+            if (!Packsize.Test())
+            {
+                Debug.LogError("[SteamManager] Packsize Test returned false, the wrong version of Steamworks.NET is being run in this platform.");
+            }
+
+            if (!DllCheck.Test())
+            {
+                Debug.LogError("[SteamManager] DllCheck Test returned false, one or more of the Steamworks binaries seems to be the wrong version.");
+            }
+
+            try
+            {
+                if (SteamAPI.RestartAppIfNecessary(AppId_t.Invalid))
+                {
+                    Application.Quit();
+                    return;
+                }
+            }
+            catch (System.DllNotFoundException e)
+            {
+                Debug.LogError("[SteamManager] Could not load [lib]steam_api.dll/so/dylib: " + e);
+                return;
+            }
+
+            s_everInitialized = SteamAPI.Init();
+            if (!s_everInitialized)
+            {
+                Debug.LogError("[SteamManager] SteamAPI.Init() failed. Refer to Valve's documentation or ensure Steam client is running.");
+            }
+            else
+            {
+                Debug.Log($"<color=green>[SteamManager] Steamworks initialized successfully! Logged in as: {SteamFriends.GetPersonaName()}</color>");
+            }
         }
 
-        s_everInitialized = SteamAPI.Init();
-        if (!s_everInitialized)
+        private void Update()
         {
-            Debug.LogError("[SteamManager] SteamAPI.Init() failed. Refer to Valve's documentation or ensure Steam client is running.");
+            if (s_everInitialized)
+            {
+                SteamAPI.RunCallbacks();
+            }
         }
-        else
-        {
-            Debug.Log($"<color=green>[SteamManager] Steamworks initialized successfully! Logged in as: {SteamFriends.GetPersonaName()}</color>");
-        }
-    }
 
-    private void Update()
-    {
-        if (s_everInitialized)
+        private void OnDestroy()
         {
-            SteamAPI.RunCallbacks();
-        }
-    }
+            if (s_instance != this) return;
 
-    private void OnDestroy()
-    {
-        if (s_instance != this) return;
-
-        s_instance = null;
-        if (s_everInitialized)
-        {
-            SteamAPI.Shutdown();
+            s_instance = null;
+            if (s_everInitialized)
+            {
+                SteamAPI.Shutdown();
+            }
         }
     }
 }

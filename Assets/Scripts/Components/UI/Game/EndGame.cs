@@ -66,8 +66,7 @@ namespace EOS
         {
             if (!success)
             {
-                Debug.LogError($"[EndGame] Failed to reset match state in EOS lobby: {error}");
-                NotificationManager.Show($"Match reset error: {error}", NotificationType.Error);
+                Debug.LogWarning($"[EndGame] Host reset match callback note: {error}");
             }
 
             // Stop host in Mirror: disconnects all clients and automatically loads offlineScene (Lobby.unity)

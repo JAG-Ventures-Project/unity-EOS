@@ -20,11 +20,10 @@ namespace EOS
         private PlatformInterface _platformInterface;
 
         public PlatformInterface PlatformInterface => _platformInterface;
-        public CrossPlayFriendsStore CrossPlayStore { get; private set; }
-        public LobbyInviteManager LobbyInvites { get; private set; }
-        public FriendsManager Friends { get; private set; }
         public bool IsInitialized => _platformInterface != null;
 
+        public event Action OnTick;
+        public event Action OnPlatformReady;
         public event Action OnBeforeShutdown;
 
         private static readonly ProfilerMarker s_EosTickMarker = new ProfilerMarker("EOS.PlatformTick");
@@ -92,9 +91,7 @@ namespace EOS
 
             EpicTransport.EOSSDKComponent.SetExternalPlatform(_platformInterface, null, () => IsInitialized && GetLocalProductUserId() != null);
 
-            CrossPlayStore = new CrossPlayFriendsStore(PlayerDataStorageManager.Instance);
-            LobbyInvites = new LobbyInviteManager(LobbyManager.Instance, CrossPlayStore);
-            Friends = new FriendsManager(_platformInterface, CrossPlayStore, LobbyInvites);
+            OnPlatformReady?.Invoke();
         }
 
         public Result InitializePlatform(EosApiKey apiKey)
@@ -151,6 +148,7 @@ namespace EOS
             {
                 _platformInterface.Tick();
             }
+            OnTick?.Invoke();
         }
 
         public ProductUserId GetLocalProductUserId()
@@ -169,8 +167,6 @@ namespace EOS
                     EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
                 }
 
-                Friends?.Shutdown();
-                LobbyInvites?.Dispose();
                 OnBeforeShutdown?.Invoke();
                 EpicTransport.EOSSDKComponent.TriggerShutdown();
 

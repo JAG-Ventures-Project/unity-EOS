@@ -12,31 +12,34 @@ namespace EOS
     {
         [Header("UI References")]
         [SerializeField] private TMP_Text playerNameText;
+        [SerializeField] private Button kickPlayerButton;
+        [SerializeField] private Button addFriendButton;
         [SerializeField] private Image playerAvatarImage;
         [SerializeField] private GameObject readyIndicator;
-        [SerializeField] private Button kickPlayerButton;
 
         public ProductUserId UserId { get; private set; }
         public string PlayerName { get; private set; }
         public Sprite AvatarSprite { get; private set; }
         public event Action<ProductUserId> OnKickClicked;
+        public event Action<ProductUserId> OnAddFriendClicked;
 
 #if UNITY_EDITOR
         private void OnValidate()
         {
             Assert.IsNotNull(playerNameText, "[LobbyPlayerCardUI] PlayerNameText must not be null.");
+            Assert.IsNotNull(kickPlayerButton, "[LobbyPlayerCardUI] kickPlayerButton must not be null.");
+            Assert.IsNotNull(addFriendButton, "[LobbyPlayerCardUI] addFriendButton must not be null.");
             Assert.IsNotNull(playerAvatarImage, "[LobbyPlayerCardUI] PlayerAvatarImage must not be null.");
             Assert.IsNotNull(readyIndicator, "[LobbyPlayerCardUI] readyIndicator must not be null.");
-            Assert.IsNotNull(kickPlayerButton, "[LobbyPlayerCardUI] kickPlayerButton must not be null.");
         }
 #endif
 
-        public void SetData(string playerName, Sprite avatarSprite, bool isReady = false, bool canKick = false)
+        public void SetData(string playerName, Sprite avatarSprite, bool isReady = false, bool canKick = false, bool canAddFriend = false)
         {
-            SetData(null, playerName, avatarSprite, isReady, canKick);
+            SetData(null, playerName, avatarSprite, isReady, canKick, canAddFriend);
         }
 
-        public void SetData(ProductUserId userId, string playerName, Sprite avatarSprite, bool isReady = false, bool canKick = false)
+        public void SetData(ProductUserId userId, string playerName, Sprite avatarSprite, bool isReady = false, bool canKick = false, bool canAddFriend = false)
         {
             UserId = userId;
             PlayerName = !string.IsNullOrWhiteSpace(playerName) ? playerName : "Player";
@@ -47,13 +50,21 @@ namespace EOS
             playerAvatarImage.enabled = (avatarSprite != null);
             SetReady(isReady);
             kickPlayerButton.onClick.AddListener(OnKickPlayerClicked);
+            addFriendButton.onClick.AddListener(OnAddFriendPlayerClicked);
             SetKickButtonActive(canKick);
+            SetAddFriendButtonActive(canAddFriend);
         }
 
         public void SetKickButtonActive(bool active)
         {
             kickPlayerButton.gameObject.SetActive(active);
             kickPlayerButton.interactable = active;
+        }
+
+        public void SetAddFriendButtonActive(bool active)
+        {
+            addFriendButton.gameObject.SetActive(active);
+            addFriendButton.interactable = active;
         }
 
         public void SetReady(bool isReady)
@@ -77,6 +88,11 @@ namespace EOS
         private void OnKickPlayerClicked()
         {
             OnKickClicked?.Invoke(UserId);
+        }
+
+        private void OnAddFriendPlayerClicked()
+        {
+            OnAddFriendClicked?.Invoke(UserId);
         }
     }
 }

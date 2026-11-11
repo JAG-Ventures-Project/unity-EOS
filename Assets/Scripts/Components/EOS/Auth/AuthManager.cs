@@ -5,7 +5,7 @@ using Epic.OnlineServices.Platform;
 using UnityEngine;
 
 namespace EOS
-{   
+{
     /// <summary>
     /// Manages Epic Account Services (AuthInterface) authentication.
     /// Handles PersistentAuth (Remember Me), AccountPortal (interactive login), and ExchangeCode (launcher builds).
@@ -23,6 +23,8 @@ namespace EOS
 
         public EpicAccountId LocalEpicAccountId => _epicId;
         public bool IsLoggedIn => _epicId != null && _epicId.IsValid();
+
+        public static event Action OnLoggedOut;
 
         /// <summary>
         /// Gets or sets whether to remember the user's Epic Games login across sessions via Persistent Authorization.
@@ -88,6 +90,116 @@ namespace EOS
         public void LoginWithPersistentAuth(bool fallbackToAccountPortal = false, Action<bool, string> onComplete = null)
         {
             PerformLogin(LoginCredentialType.PersistentAuth, null, fallbackToAccountPortal, onComplete);
+        }
+
+        /// <summary>
+        /// Executes full Epic login flow (AccountPortal/ExchangeCode -> Connect token exchange -> DisplayName).
+        /// </summary>
+        public void LoginWithEpic(bool rememberMe, Action<bool, string> onComplete)
+        {
+            ConnectManager.Instance?.CancelSteamTicket();
+            IsRememberMe = rememberMe;
+
+            Login(fallbackToAccountPortal: true, (authSuccess, authError) =>
+            {
+                if (!authSuccess)
+                {
+                    CompleteOperation(onComplete, false, authError);
+                    return;
+                }
+
+                CompleteEpicConnectLogin(rememberMe, onComplete);
+            });
+        }
+
+        private void CompleteEpicConnectLogin(bool rememberMe, Action<bool, string> onComplete)
+        {
+            string token = CopyUserAuthToken();
+            if (string.IsNullOrEmpty(token))
+            {
+                CompleteOperation(onComplete, false, "Failed to copy Epic user auth token.");
+                return;
+            }
+
+            ConnectManager.Instance.LoginWithEpic(token, (connectSuccess, connectError) =>
+            {
+                if (!connectSuccess)
+                {
+                    CompleteOperation(onComplete, false, connectError);
+                    return;
+                }
+
+                GetDisplayName((epicDisplayName) =>
+                {
+                    EpicTransport.EOSSDKComponent.DisplayName = epicDisplayName;
+                    AuthPreferences.LastLoginProvider = rememberMe ? LoginProvider.Epic : LoginProvider.None;
+                    CompleteOperation(onComplete, true);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Checks launcher arguments, remembered Epic credentials, or Steam for automatic silent login.
+        /// </summary>
+        public void TryAutoLogin(Action<bool, string> onComplete)
+        {
+            if (HasExchangeCode())
+            {
+                Debug.Log("[AuthManager] Epic Games Launcher exchange code detected. Auto-logging in...");
+                LoginWithEpic(false, onComplete);
+                return;
+            }
+
+            switch (AuthPreferences.LastLoginProvider)
+            {
+                case LoginProvider.Epic when AuthPreferences.RememberEpicAccount:
+                    Debug.Log("[AuthManager] Auto-logging in via Epic PersistentAuth...");
+                    LoginWithPersistentAuth(fallbackToAccountPortal: false, (authSuccess, authError) =>
+                    {
+                        if (authSuccess)
+                        {
+                            CompleteEpicConnectLogin(true, onComplete);
+                        }
+                        else
+                        {
+                            onComplete?.Invoke(false, authError);
+                        }
+                    });
+                    break;
+
+                case LoginProvider.Steam when SteamManager.Initialized:
+                    Debug.Log("[AuthManager] Auto-logging in via Steam...");
+                    ConnectManager.Instance.LoginWithSteam(true, onComplete);
+                    break;
+
+                default:
+                    onComplete?.Invoke(false, null);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Signs out of all authentication providers, cancels Steam tickets, and clears session data.
+        /// </summary>
+        public void LogoutAll(Action<bool, string> onComplete = null)
+        {
+            void FinalizeLogout()
+            {
+                ConnectManager.Instance?.CancelSteamTicket();
+                ConnectManager.Instance?.ResetSession();
+                AuthPreferences.ClearSession();
+                OnLoggedOut?.Invoke();
+                onComplete?.Invoke(true, null);
+            }
+
+            if (IsLoggedIn)
+            {
+                Logout(forgetUser: true, (success, error) => FinalizeLogout());
+            }
+            else
+            {
+                FinalizeLogout();
+            }
         }
 
         /// <summary>
@@ -293,5 +405,5 @@ namespace EOS
         }
 
         #endregion
-    }   
+    }
 }

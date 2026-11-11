@@ -53,6 +53,12 @@ namespace EOS
 
         public void StartEosClient(string hostProductUserId)
         {
+            if (NetworkClient.active || NetworkClient.isConnected)
+            {
+                Debug.LogWarning("[EOSNetworkManager] StartEosClient called while NetworkClient is already active or connected. Ignoring duplicate connect.");
+                return;
+            }
+
             networkAddress = hostProductUserId;
             StartClient();
         }
@@ -96,6 +102,25 @@ namespace EOS
                 return true;
             }
             return false;
+        }
+
+        public override void OnClientConnect()
+        {
+            // Mirror architecture: OnClientConnect handles Ready & AddPlayer only when no scene is loaded.
+            // When an online scene is used (like GameScene), Mirror's OnClientSceneChanged will
+            // trigger Ready and AddPlayer once the scene load finishes.
+            if (!clientLoadedScene)
+            {
+                if (!NetworkClient.ready)
+                {
+                    NetworkClient.Ready();
+                }
+
+                if (autoCreatePlayer && NetworkClient.localPlayer == null)
+                {
+                    NetworkClient.AddPlayer();
+                }
+            }
         }
 
         public override void OnClientDisconnect()

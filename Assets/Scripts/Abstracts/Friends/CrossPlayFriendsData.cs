@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace EOS
 {
-    // AI implementation: Individual serialized friend entry saved in EOS Player Data Storage
     [Serializable]
     public class CrossPlayFriendEntry
     {
@@ -11,9 +10,9 @@ namespace EOS
         public string displayName;
         public int platform; // LoginProvider enum value
         public long addedTimestamp;
+        public bool wasFriend;
     }
 
-    // AI implementation: Root JSON schema for cloud-persisted friends and blocked users (friends_data.json)
     [Serializable]
     public class CrossPlayFriendsData
     {
@@ -22,6 +21,9 @@ namespace EOS
         public List<CrossPlayFriendEntry> blocked = new();
         public List<CrossPlayFriendEntry> pendingIncoming = new();
         public List<CrossPlayFriendEntry> pendingOutgoing = new();
+
+        // Friend signals not yet acknowledged by the remote player (retried until acked or expired)
+        public List<FriendSignal> outbox = new();
     }
 }
 

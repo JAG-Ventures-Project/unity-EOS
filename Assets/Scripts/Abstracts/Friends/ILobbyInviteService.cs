@@ -4,8 +4,8 @@ using Epic.OnlineServices;
 
 namespace EOS
 {
-    // AI implementation: Service contract for managing incoming and outgoing lobby invitations
-    public interface ILobbyInviteService
+    // Service contract for managing incoming and outgoing lobby invitations
+    public interface ILobbyInviteService : IDisposable
     {
         IReadOnlyList<LobbyInviteModel> PendingInvites { get; }
 

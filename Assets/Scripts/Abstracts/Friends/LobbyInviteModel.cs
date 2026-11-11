@@ -3,7 +3,6 @@ using Epic.OnlineServices;
 
 namespace EOS
 {
-    // AI implementation: Model representing a pending lobby invitation received by the local player
     public class LobbyInviteModel
     {
         public string InviteId { get; set; }

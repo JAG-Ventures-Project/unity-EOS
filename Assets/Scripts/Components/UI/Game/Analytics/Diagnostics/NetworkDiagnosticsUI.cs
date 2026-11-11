@@ -46,6 +46,11 @@ namespace EOS.UI.Analytics
         }
 #endif
 
+        private void Awake()
+        {
+            InitializeRows();
+        }
+
         private void OnEnable()
         {
             if (NetworkDiagnosticsManager.Instance != null)
@@ -59,8 +64,6 @@ namespace EOS.UI.Analytics
 
         private void Start()
         {
-            InitializeRows();
-
             if (NetworkDiagnosticsManager.Instance != null)
             {
                 NetworkDiagnosticsManager.Instance.OnStatsUpdated -= HandleStatsUpdated;

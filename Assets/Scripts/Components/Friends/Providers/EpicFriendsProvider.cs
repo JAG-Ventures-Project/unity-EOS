@@ -93,10 +93,10 @@ namespace EOS
                         LocalUserId = provider._authManager.LocalEpicAccountId,
                         TargetUserId = friendId
                     };
-                    if (provider._userInfoHandle.CopyUserInfo(copyOptions, out UserInfoData userInfo) == Result.Success && userInfo != null)
-                    {
-                        displayName = !string.IsNullOrEmpty(userInfo.DisplayName) ? userInfo.DisplayName : displayName;
-                    }
+                        if (provider._userInfoHandle.CopyUserInfo(copyOptions, out UserInfoData userInfo) == Result.Success && userInfo != null)
+                        {
+                            displayName = !string.IsNullOrEmpty(userInfo.DisplayName) ? userInfo.DisplayName : displayName;
+                        }
                 }
 
                 results.Add(new PlatformFriend
@@ -119,4 +119,3 @@ namespace EOS
         }
     }
 }
-

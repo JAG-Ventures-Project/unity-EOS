@@ -6,8 +6,7 @@ using Epic.OnlineServices.Lobby;
 using Epic.OnlineServices.Platform;
 using UnityEngine;
 using UnityEngine.Assertions;
-using EpicTransport;
-using Common = Epic.OnlineServices.Common;
+using EOSSDKComponent = EpicTransport.EOSSDKComponent;
 
 namespace EOS
 {
@@ -19,6 +18,7 @@ namespace EOS
         public const string AllowJoinInProgressKey = "ALLOW_JOIN_IN_PROGRESS";
         public const string ReadyKey = "READY";
         public const string DisplayNameKey = "DISPLAY_NAME";
+        public const string HostNameKey = "HOST_NAME";
 
         public string CurrentLobbyId { get; private set; }
         public string CurrentJoinCode { get; private set; }
@@ -29,7 +29,10 @@ namespace EOS
         public bool IsCleaningOrphan { get; private set; }
         public bool HasGameStarted => _hasGameStarted;
         public bool AllowJoinInProgress { get; set; } = false;
+        public static Func<string, string> ExternalDisplayNameResolver { get; set; }
         public ProductUserId LocalProductUserId => _localProductUserId;
+        public string CurrentHostAddress => IsLobbyOwner ? (_localProductUserId != null ? _localProductUserId.ToString() : null) : _currentHostAddress;
+        public bool IsLocalReady => IsMemberReady(_localProductUserId);
 
         public event Action<string> OnLobbyCreated;
         public event Action<string> OnLobbyJoined;
@@ -45,14 +48,16 @@ namespace EOS
         private const string BucketId = "GameLobby";
         private const string CodeCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+        private const ulong InvalidNotificationId = Epic.OnlineServices.Common.InvalidNotificationid;
+
         private readonly PlatformInterface _platformHandle;
         private readonly LobbyInterface _lobbyHandle;
         private ProductUserId _localProductUserId;
 
-        private ulong _memberStatusNotificationId = Common.InvalidNotificationid;
-        private ulong _lobbyUpdateNotificationId = Common.InvalidNotificationid;
-        private ulong _memberUpdateNotificationId = Common.InvalidNotificationid;
-        private ulong _inviteNotificationId = Common.InvalidNotificationid;
+        private ulong _memberStatusNotificationId = InvalidNotificationId;
+        private ulong _lobbyUpdateNotificationId = InvalidNotificationId;
+        private ulong _memberUpdateNotificationId = InvalidNotificationId;
+        private ulong _inviteNotificationId = InvalidNotificationId;
         private string _currentHostAddress;
         private bool _hasGameStarted;
 
@@ -151,7 +156,8 @@ namespace EOS
                 LocalUserId = puid,
                 MaxLobbyMembers = maxMembers,
                 PermissionLevel = LobbyPermissionLevel.Publicadvertised,
-                PresenceEnabled = false,
+                PresenceEnabled = true,
+                AllowInvites = true,
                 BucketId = BucketId
             };
             _lobbyHandle.CreateLobby(createOptions, onComplete, HandleCreateLobbyCallback);
@@ -221,10 +227,22 @@ namespace EOS
             };
             modHandle.AddAttribute(allowJoinOptions);
 
+            string hostDisplayName = !string.IsNullOrWhiteSpace(EOSSDKManager.LocalDisplayName)
+                ? EOSSDKManager.LocalDisplayName
+                : (!string.IsNullOrWhiteSpace(EOSSDKComponent.DisplayName) ? EOSSDKComponent.DisplayName : "Host");
+
+            // adding HOST_NAME public lobby attribute (visible to invitees before joining)
+            var hostNameAttr = new AttributeData { Key = HostNameKey, Value = hostDisplayName };
+            modHandle.AddAttribute(new LobbyModificationAddAttributeOptions
+            {
+                Attribute = hostNameAttr,
+                Visibility = LobbyAttributeVisibility.Public
+            });
+
             // adding DISPLAY_NAME member attribute for host
             modHandle.AddMemberAttribute(new LobbyModificationAddMemberAttributeOptions
             {
-                Attribute = new AttributeData { Key = DisplayNameKey, Value = EOSSDKComponent.DisplayName },
+                Attribute = new AttributeData { Key = DisplayNameKey, Value = hostDisplayName },
                 Visibility = LobbyAttributeVisibility.Public
             });
 
@@ -348,15 +366,28 @@ namespace EOS
             {
                 LobbyDetailsHandle = detailsHandle,
                 LocalUserId = _localProductUserId,
-                PresenceEnabled = false
+                PresenceEnabled = true
             };
             _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted), HandleJoinLobbyCallback);
         }
 
         private void HandleJoinLobbyCallback(JoinLobbyCallbackInfo data)
         {
-            var (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted) =
-                ((Action<bool, string>, string, string, LobbyDetails, bool))data.ClientData;
+            Action<bool, string> onComplete = null;
+            string joinCode = string.Empty;
+            string hostAddress = string.Empty;
+            LobbyDetails detailsHandle = null;
+            bool matchAlreadyStarted = false;
+
+            if (data.ClientData is ValueTuple<Action<bool, string>, string, string, LobbyDetails, bool> tuple5)
+            {
+                (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted) = tuple5;
+            }
+            else if (data.ClientData is ValueTuple<Action<bool, string>, string, string, LobbyDetails> tuple4)
+            {
+                (onComplete, joinCode, hostAddress, detailsHandle) = tuple4;
+            }
+
             detailsHandle?.Release();
 
             if (data.ResultCode != Result.Success)
@@ -373,7 +404,10 @@ namespace EOS
             _hasGameStarted = matchAlreadyStarted;
             SubscribeToNotifications();
             UpdateAndCheckReadyStatus();
-            SetLocalMemberDisplayName(EOSSDKComponent.DisplayName);
+            string myDisplayName = !string.IsNullOrWhiteSpace(EOSSDKManager.LocalDisplayName)
+                ? EOSSDKManager.LocalDisplayName
+                : (!string.IsNullOrWhiteSpace(EOSSDKComponent.DisplayName) ? EOSSDKComponent.DisplayName : "Player");
+            SetLocalMemberDisplayName(myDisplayName);
             OnLobbyJoined?.Invoke(hostAddress);
             CompleteOperation(onComplete, true, hostAddress);
 
@@ -413,9 +447,22 @@ namespace EOS
             }
 
             var matchAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = MatchStartedKey };
+            bool matchAlreadyStarted = false;
             if (detailsHandle.CopyAttributeByKey(matchAttrOptions, out Epic.OnlineServices.Lobby.Attribute matchAttr) == Result.Success && matchAttr?.Data?.Value != null)
             {
-                if (matchAttr.Data.Value.AsUtf8 == "true")
+                matchAlreadyStarted = matchAttr.Data.Value.AsUtf8 == "true";
+            }
+
+            if (matchAlreadyStarted)
+            {
+                bool allowsJoinInProgress = false;
+                var allowJoinAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = AllowJoinInProgressKey };
+                if (detailsHandle.CopyAttributeByKey(allowJoinAttrOptions, out Epic.OnlineServices.Lobby.Attribute allowJoinAttr) == Result.Success && allowJoinAttr?.Data?.Value != null)
+                {
+                    allowsJoinInProgress = allowJoinAttr.Data.Value.AsUtf8 == "true";
+                }
+
+                if (!allowsJoinInProgress)
                 {
                     detailsHandle.Release();
                     CompleteOperation(onComplete, false, "Match has already started in this room.");
@@ -441,10 +488,10 @@ namespace EOS
             {
                 LobbyDetailsHandle = detailsHandle,
                 LocalUserId = _localProductUserId,
-                PresenceEnabled = false
+                PresenceEnabled = true
             };
 
-            _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle), HandleJoinLobbyCallback);
+            _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted), HandleJoinLobbyCallback);
         }
 
         public void SendInvite(ProductUserId targetUserId, Action<bool, string> onComplete = null)
@@ -584,7 +631,7 @@ namespace EOS
 
         private void SubscribeToInviteNotifications()
         {
-            if (_inviteNotificationId != Common.InvalidNotificationid) return;
+            if (_inviteNotificationId != InvalidNotificationId) return;
 
             var options = new AddNotifyLobbyInviteReceivedOptions();
             _inviteNotificationId = _lobbyHandle.AddNotifyLobbyInviteReceived(options, this, OnLobbyInviteReceivedCallback);
@@ -592,10 +639,10 @@ namespace EOS
 
         private void UnsubscribeFromInviteNotifications()
         {
-            if (_inviteNotificationId != Common.InvalidNotificationid)
+            if (_inviteNotificationId != InvalidNotificationId)
             {
                 _lobbyHandle.RemoveNotifyLobbyInviteReceived(_inviteNotificationId);
-                _inviteNotificationId = Common.InvalidNotificationid;
+                _inviteNotificationId = InvalidNotificationId;
             }
         }
 
@@ -626,7 +673,13 @@ namespace EOS
             }
 
             string hostName = string.Empty;
-            if (info?.LobbyOwnerUserId != null)
+            var hostNameAttrOptions = new LobbyDetailsCopyAttributeByKeyOptions { AttrKey = HostNameKey };
+            if (detailsHandle.CopyAttributeByKey(hostNameAttrOptions, out Epic.OnlineServices.Lobby.Attribute hostNameAttr) == Result.Success && hostNameAttr?.Data?.Value != null)
+            {
+                hostName = hostNameAttr.Data.Value.AsUtf8;
+            }
+
+            if (string.IsNullOrEmpty(hostName) && info?.LobbyOwnerUserId != null)
             {
                 var memberAttrOptions = new LobbyDetailsCopyMemberAttributeByKeyOptions
                 {
@@ -636,6 +689,15 @@ namespace EOS
                 if (detailsHandle.CopyMemberAttributeByKey(memberAttrOptions, out Epic.OnlineServices.Lobby.Attribute nameAttr) == Result.Success && nameAttr?.Data?.Value != null)
                 {
                     hostName = nameAttr.Data.Value.AsUtf8;
+                }
+            }
+
+            if (string.IsNullOrEmpty(hostName) && info?.LobbyOwnerUserId != null)
+            {
+                string externalName = ExternalDisplayNameResolver?.Invoke(info.LobbyOwnerUserId.ToString());
+                if (!string.IsNullOrEmpty(externalName))
+                {
+                    hostName = externalName;
                 }
             }
 
@@ -680,22 +742,22 @@ namespace EOS
 
         private void UnsubscribeFromNotifications()
         {
-            if (_memberStatusNotificationId != Common.InvalidNotificationid)
+            if (_memberStatusNotificationId != InvalidNotificationId)
             {
                 _lobbyHandle.RemoveNotifyLobbyMemberStatusReceived(_memberStatusNotificationId);
-                _memberStatusNotificationId = Common.InvalidNotificationid;
+                _memberStatusNotificationId = InvalidNotificationId;
             }
 
-            if (_lobbyUpdateNotificationId != Common.InvalidNotificationid)
+            if (_lobbyUpdateNotificationId != InvalidNotificationId)
             {
                 _lobbyHandle.RemoveNotifyLobbyUpdateReceived(_lobbyUpdateNotificationId);
-                _lobbyUpdateNotificationId = Common.InvalidNotificationid;
+                _lobbyUpdateNotificationId = InvalidNotificationId;
             }
 
-            if (_memberUpdateNotificationId != Common.InvalidNotificationid)
+            if (_memberUpdateNotificationId != InvalidNotificationId)
             {
                 _lobbyHandle.RemoveNotifyLobbyMemberUpdateReceived(_memberUpdateNotificationId);
-                _memberUpdateNotificationId = Common.InvalidNotificationid;
+                _memberUpdateNotificationId = InvalidNotificationId;
             }
         }
 
@@ -882,6 +944,22 @@ namespace EOS
             _lobbyHandle.UpdateLobby(updateOptions, (onComplete, modHandle), HandleCallback);
         }
 
+        public void ToggleReadyStatus(Action<bool, string> onComplete = null)
+        {
+            SetReadyStatus(!IsLocalReady, onComplete);
+        }
+
+        public void ResetLocalReadyStatus(Action<bool, string> onComplete = null)
+        {
+            if (!IsInLobby || IsLobbyOwner)
+            {
+                onComplete?.Invoke(true, null);
+                return;
+            }
+
+            SetReadyStatus(false, onComplete);
+        }
+
         public void ResetMatchState(Action<bool, string> onComplete = null)
         {
             if (!IsInLobby || !IsLobbyOwner)
@@ -996,21 +1074,53 @@ namespace EOS
         public string GetMemberDisplayName(ProductUserId userId)
         {
             if (userId == null || userId == _localProductUserId)
-                return EOSSDKComponent.DisplayName;
+            {
+                return !string.IsNullOrWhiteSpace(EOSSDKManager.LocalDisplayName)
+                    ? EOSSDKManager.LocalDisplayName
+                    : (!string.IsNullOrWhiteSpace(EOSSDKComponent.DisplayName) ? EOSSDKComponent.DisplayName : "Player");
+            }
 
             var copyOptions = new CopyLobbyDetailsHandleOptions { LobbyId = CurrentLobbyId, LocalUserId = _localProductUserId };
             if (_lobbyHandle.CopyLobbyDetailsHandle(copyOptions, out LobbyDetails detailsHandle) != Result.Success)
-                return "Player";
+            {
+                string fallback = ExternalDisplayNameResolver?.Invoke(userId.ToString());
+                return !string.IsNullOrEmpty(fallback) ? fallback : "Player";
+            }
 
             var attrOptions = new LobbyDetailsCopyMemberAttributeByKeyOptions { TargetUserId = userId, AttrKey = DisplayNameKey };
-            string displayName = "Player";
+            string displayName = null;
             if (detailsHandle.CopyMemberAttributeByKey(attrOptions, out var attr) == Result.Success && attr?.Data?.Value != null)
             {
                 displayName = attr.Data.Value.AsUtf8;
             }
 
             detailsHandle.Release();
-            return displayName;
+
+            if (string.IsNullOrWhiteSpace(displayName) || displayName == "Player")
+            {
+                string fallback = ExternalDisplayNameResolver?.Invoke(userId.ToString());
+                if (!string.IsNullOrEmpty(fallback))
+                {
+                    displayName = fallback;
+                }
+            }
+
+            return !string.IsNullOrWhiteSpace(displayName) ? displayName : "Player";
+        }
+
+        public string ResolveDisplayName(string address)
+        {
+            if (string.IsNullOrEmpty(address)) return null;
+            var userId = ProductUserId.FromString(address);
+            return userId != null ? GetMemberDisplayName(userId) : null;
+        }
+
+        public void HandleNetworkDisconnect()
+        {
+            if (IsInLobby && HasGameStarted)
+            {
+                LeaveLobby();
+            }
         }
 
         public bool IsMemberReady(ProductUserId userId)

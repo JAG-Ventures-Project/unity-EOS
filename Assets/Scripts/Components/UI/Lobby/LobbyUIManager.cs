@@ -40,7 +40,6 @@ namespace EOS
 
         private ILobby _lobby;
         private TextMeshProUGUI _actionButtonText;
-        private bool _isLocalReady;
         private readonly List<LobbyPlayerCardUI> _cardPool = new();
         private readonly Dictionary<string, LobbyPlayerCardUI> _activePlayerCards = new();
 
@@ -94,12 +93,19 @@ namespace EOS
 
         private void Start()
         {
+            if (FriendsManager.Instance != null)
+            {
+                FriendsManager.Instance.OnFriendsListUpdated -= HandleFriendsListUpdated;
+                FriendsManager.Instance.OnFriendsListUpdated += HandleFriendsListUpdated;
+            }
+
             if (EOSNetworkManager.Instance != null)
             {
                 EOSNetworkManager.Instance.CustomDisplayNameResolver = ResolveLobbyDisplayName;
                 EOSNetworkManager.Instance.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
                 EOSNetworkManager.Instance.OnUnexpectedClientDisconnect += HandleUnexpectedClientDisconnect;
             }
+
             if (_lobby != null && _lobby.IsInLobby)
             {
                 RestoreInLobbyUI();
@@ -114,7 +120,6 @@ namespace EOS
             }
         }
 
-        // AI implementation
         private void HandleOrphanCleanupComplete()
         {
             SetMenuButtonsInteractable(true);
@@ -122,19 +127,9 @@ namespace EOS
 
         private void RestoreInLobbyUI()
         {
-            _isLocalReady = false;
             roomCodeText.text = _lobby.CurrentJoinCode;
             UpdateMemberCountDisplay();
-
-            if (!_lobby.IsLobbyOwner)
-            {
-                // Reset local ready status on EOS backend so player does not start ready for next match
-                _lobby.SetReadyStatus(false, HandleResetReadyStatusCallback);
-            }
-            else
-            {
-                _lobby.UpdateAndCheckReadyStatus();
-            }
+            _lobby.ResetLocalReadyStatus();
 
             UpdateActionButtonsDisplay();
             SetPanelState(isInLobby: true);
@@ -143,17 +138,15 @@ namespace EOS
             SyncPlayerCards();
         }
 
-        private void HandleResetReadyStatusCallback(bool success, string error)
-        {
-            // AI implementation
-            if (!success)
-            {
-                Debug.LogWarning($"[LobbyUIManager] Failed to reset ready status upon returning: {error}");
-            }
-        }
-
         private void OnDestroy()
         {
+            if (FriendsManager.Instance != null)
+            {
+                FriendsManager.Instance.OnFriendsListUpdated -= HandleFriendsListUpdated;
+            }
+
+            EOSNetworkManager.Instance.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
+
             if (_lobby != null)
             {
                 _lobby.OnLobbyCreated -= HandleOnLobbyCreated;
@@ -172,6 +165,7 @@ namespace EOS
                 if (_cardPool[i] != null)
                 {
                     _cardPool[i].OnKickClicked -= HandleOnKickPlayerClicked;
+                    _cardPool[i].OnAddFriendClicked -= HandleOnAddFriendClicked;
                 }
             }
         }
@@ -194,7 +188,6 @@ namespace EOS
             _lobby.JoinLobbyByCode(code);
         }
 
-        // AI Implementation
         private void OnCopyCodeButtonClicked()
         {
             if (string.IsNullOrEmpty(_lobby.CurrentJoinCode)) return;
@@ -222,25 +215,23 @@ namespace EOS
         private void OnToggleReadyButtonClicked()
         {
             startGameButton.interactable = false;
-            bool targetReady = !_isLocalReady;
-            _lobby.SetReadyStatus(targetReady, HandleSetReadyStatusCallback);
+            _lobby.ToggleReadyStatus(HandleSetReadyStatusCallback);
         }
 
         private void HandleSetReadyStatusCallback(bool success, string error)
         {
-            // AI implementation
             startGameButton.interactable = true;
             if (!success)
             {
                 NotificationManager.Show($"Failed to update ready: {error}", NotificationType.Error);
                 return;
             }
-            _isLocalReady = !_isLocalReady;
+
             UpdateActionButtonsDisplay();
 
             if (_activePlayerCards.TryGetValue(_lobby.LocalProductUserId.ToString(), out LobbyPlayerCardUI card))
             {
-                card.SetReady(_isLocalReady);
+                card.SetReady(_lobby.IsLocalReady);
             }
         }
 
@@ -248,8 +239,10 @@ namespace EOS
         {
             SetLobbyButtonsInteractable(false);
 
+            FriendsOverlayManager.Instance?.PersistForGameScene();
+
             // Start Mirror Host first so transport is listening for clients
-            EOSNetworkManager.Instance.StartEosHost(nextSceneName);
+            EOSNetworkManager.Instance?.StartEosHost(nextSceneName);
 
             // Signal other players via EOS Lobby that match has started
             _lobby.StartGame(HandleStartGameCallback);
@@ -257,10 +250,9 @@ namespace EOS
 
         private void HandleStartGameCallback(bool success, string error)
         {
-            // AI implementation
             if (!success)
             {
-                EOSNetworkManager.Instance.StopNetwork();
+                EOSNetworkManager.Instance?.StopNetwork();
                 UpdateActionButtonsDisplay();
                 NotificationManager.Show($"Failed to start match: {error}", NotificationType.Error);
             }
@@ -269,13 +261,15 @@ namespace EOS
         private void HandleOnGameStarted(string hostAddress)
         {
             SetLobbyButtonsInteractable(false);
+
+            FriendsOverlayManager.Instance?.PersistForGameScene();
+
             NotificationManager.Show("Match is starting...", NotificationType.Normal);
-            EOSNetworkManager.Instance.StartEosClient(hostAddress);
+            EOSNetworkManager.Instance?.StartEosClient(hostAddress);
         }
 
         private void HandleOnLobbyCreated(string shortCode)
         {
-            _isLocalReady = false;
             roomCodeText.text = shortCode;
             UpdateMemberCountDisplay();
             UpdateActionButtonsDisplay();
@@ -286,7 +280,6 @@ namespace EOS
 
         private void HandleOnLobbyJoined(string hostAddress)
         {
-            _isLocalReady = false;
             roomCodeText.text = _lobby.CurrentJoinCode;
             UpdateMemberCountDisplay();
             UpdateActionButtonsDisplay();
@@ -305,10 +298,10 @@ namespace EOS
             }
             else
             {
-                _actionButtonText.text = _isLocalReady ? "Unready" : "Ready";
+                _actionButtonText.text = _lobby.IsLocalReady ? "Unready" : "Ready";
                 startGameButton.gameObject.SetActive(true);
                 startGameButton.interactable = true;
-                leaveLobbyButton.interactable = !_isLocalReady; // Lock leave button while Ready!
+                leaveLobbyButton.interactable = !_lobby.IsLocalReady;
             }
         }
 
@@ -322,13 +315,12 @@ namespace EOS
 
         private void HandleOnLobbyLeft()
         {
-            _isLocalReady = false;
             DeactivateAllCards();
             SetPanelState(isInLobby: false);
             SetMenuButtonsInteractable(true);
             leaveLobbyButton.interactable = true;
             joinCodeInputField.text = string.Empty;
-            EOSNetworkManager.Instance.StopNetwork();
+            EOSNetworkManager.Instance?.StopNetwork();
         }
 
         private void HandleOnPlayerJoined(ProductUserId userId)
@@ -351,6 +343,12 @@ namespace EOS
             leaveLobbyButton.interactable = true;
             Debug.LogError($"[LobbyUIManager] {errorMessage}");
             NotificationManager.Show(errorMessage, NotificationType.Error);
+        }
+
+        private void HandleUnexpectedClientDisconnect()
+        {
+            _lobby?.HandleNetworkDisconnect();
+            NotificationManager.Show("Disconnected from server.", NotificationType.Warning);
         }
 
         private void SetPanelState(bool isInLobby)
@@ -390,10 +388,10 @@ namespace EOS
                 card.SetReady(_lobby.IsMemberReady(card.UserId));
                 bool canKick = _lobby.IsLobbyOwner && (card.UserId != _lobby.LocalProductUserId);
                 card.SetKickButtonActive(canKick);
+                card.SetAddFriendButtonActive(CanAddFriend(card.UserId));
             }
         }
 
-        // AI Implementation
         private LobbyPlayerCardUI GetCardFromPool()
         {
             for (int i = 0; i < _cardPool.Count; i++)
@@ -404,6 +402,7 @@ namespace EOS
 
             LobbyPlayerCardUI newCard = Instantiate(playerCardPrefab, playerCardsParent);
             newCard.OnKickClicked += HandleOnKickPlayerClicked;
+            newCard.OnAddFriendClicked += HandleOnAddFriendClicked;
             _cardPool.Add(newCard);
             return newCard;
         }
@@ -422,9 +421,57 @@ namespace EOS
                 : _lobby.GetMemberDisplayName(userId);
 
             bool canKick = _lobby.IsLobbyOwner && (userId != _lobby.LocalProductUserId);
-            card.SetData(userId, playerName, GetRandomAvatar(), _lobby.IsMemberReady(userId), canKick);
+            bool canAddFriend = CanAddFriend(userId);
+            card.SetData(userId, playerName, GetRandomAvatar(), _lobby.IsMemberReady(userId), canKick, canAddFriend);
             card.gameObject.SetActive(true);
             _activePlayerCards[key] = card;
+        }
+
+        private bool CanAddFriend(ProductUserId userId)
+        {
+            if (userId == null || userId == _lobby.LocalProductUserId) return false;
+            if (FriendsManager.Instance == null) return false;
+
+            string displayName = _lobby.GetMemberDisplayName(userId);
+            FriendRelationStatus status = FriendsManager.Instance.GetRelationship(userId.ToString(), displayName);
+            return status == FriendRelationStatus.None;
+        }
+
+        private void HandleOnAddFriendClicked(ProductUserId targetUserId)
+        {
+            Assert.IsNotNull(targetUserId, "[LobbyUIManager] targetUserId must not be null.");
+            if (!CanAddFriend(targetUserId)) return;
+
+            string targetPuid = targetUserId.ToString();
+            string displayName = _lobby.GetMemberDisplayName(targetUserId);
+
+            FriendsManager.Instance?.SendFriendRequest(targetPuid, displayName, LoginProvider.None, HandleAddFriendCompleted);
+        }
+
+        private void HandleAddFriendCompleted(bool success, string message)
+        {
+            if (success)
+            {
+                NotificationManager.Show(message ?? "Friend request sent!", NotificationType.Normal);
+                UpdateAllCardsAddFriendStatus();
+            }
+            else if (!string.IsNullOrEmpty(message))
+            {
+                NotificationManager.Show(message, NotificationType.Error);
+            }
+        }
+
+        private void HandleFriendsListUpdated()
+        {
+            UpdateAllCardsAddFriendStatus();
+        }
+
+        private void UpdateAllCardsAddFriendStatus()
+        {
+            foreach (var card in _activePlayerCards.Values)
+            {
+                card.SetAddFriendButtonActive(CanAddFriend(card.UserId));
+            }
         }
 
         private void HandleOnKickPlayerClicked(ProductUserId targetUserId)
@@ -486,36 +533,9 @@ namespace EOS
                     : "Host";
             }
 
-            var lobby = LobbyManager.Instance;
-            if (lobby != null && !string.IsNullOrEmpty(conn.address))
-            {
-                ProductUserId userId = ProductUserId.FromString(conn.address);
-                if (userId != null)
-                {
-                    return lobby.GetMemberDisplayName(userId);
-                }
-            }
-
-            return null;
-        }
-
-        private static void HandleUnexpectedClientDisconnect()
-        {
-            var lobby = LobbyManager.Instance;
-            if (lobby != null && lobby.IsInLobby && !lobby.HasGameStarted)
-            {
-                return;
-            }
-
-            if (lobby != null && lobby.IsInLobby)
-            {
-                lobby.LeaveLobby();
-            }
-
-            NotificationManager.Show("Disconnected from server.", NotificationType.Warning);
+            return LobbyManager.Instance?.ResolveDisplayName(conn.address);
         }
 
         #endregion
-
     }
 }

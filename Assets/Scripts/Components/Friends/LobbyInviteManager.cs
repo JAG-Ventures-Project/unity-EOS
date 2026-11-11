@@ -6,7 +6,9 @@ using UnityEngine.Assertions;
 
 namespace EOS
 {
-    // AI implementation: Manages lobby invitations, concurrency batching for multi-friend invites, and auto-room creation
+    /// <summary>
+    /// Manages lobby invitations, concurrency batching for multi-friend invites, and auto-room crea /// 
+    /// </summary>
     public class LobbyInviteManager : ILobbyInviteService
     {
         private readonly ILobby _lobby;
@@ -45,7 +47,12 @@ namespace EOS
         /// </summary>
         public void InviteFriendToLobby(ProductUserId targetUserId, Action<bool, string> onComplete = null)
         {
-            Assert.IsNotNull(targetUserId, "[LobbyInviteManager] targetUserId must not be null.");
+
+            if (_friendsStore.IsBlocked(targetUserId.ToString()))
+            {
+                onComplete?.Invoke(false, "Cannot invite a blocked player.");
+                return;
+            }
 
             if (_lobby.IsInLobby)
             {
@@ -82,6 +89,12 @@ namespace EOS
             }
 
             // Lobby successfully created; dispatch invites to all queued friends
+            if (Mirror.NetworkServer.active)
+            {
+                _lobby.AllowJoinInProgress = true;
+                _lobby.StartGame();
+            }
+
             for (int i = 0; i < _pendingOutgoingQueue.Count; i++)
             {
                 PendingOutgoingInvite item = _pendingOutgoingQueue[i];
@@ -99,10 +112,20 @@ namespace EOS
         {
             Assert.IsFalse(string.IsNullOrEmpty(inviteId), "[LobbyInviteManager] inviteId must not be null or empty.");
 
-            if (_pendingInvites.TryGetValue(inviteId, out LobbyInviteModel invite) && invite.IsFull)
+            if (_pendingInvites.TryGetValue(inviteId, out LobbyInviteModel invite))
             {
-                onComplete?.Invoke(false, "Lobby is full.");
-                return;
+                if (invite.InviterUserId != null && _friendsStore != null && _friendsStore.IsBlocked(invite.InviterUserId.ToString()))
+                {
+                    DeclineInvite(inviteId, null);
+                    onComplete?.Invoke(false, "Cannot accept an invite from a blocked player.");
+                    return;
+                }
+
+                if (invite.IsFull)
+                {
+                    onComplete?.Invoke(false, "Lobby is full.");
+                    return;
+                }
             }
 
             // Flush and save cloud cross-play data before switching lobbies
@@ -150,6 +173,16 @@ namespace EOS
             {
                 _pendingInvites.Remove(inviteId);
                 OnInviteRemoved?.Invoke(inviteId);
+
+                // if joining an in-progress game match, auto-connect client directly to host if not already connecting
+                if (_lobby.HasGameStarted && !Mirror.NetworkClient.active && !Mirror.NetworkClient.isConnected && !string.IsNullOrEmpty(error))
+                {
+                    if (_lobby.AllowJoinInProgress)
+                    {
+                        FriendsOverlayManager.Instance?.PersistForGameScene();
+                    }
+                    EOSNetworkManager.Instance?.StartEosClient(error);
+                }
             }
 
             callback?.Invoke(success, error);
@@ -173,13 +206,44 @@ namespace EOS
         {
             if (data == null || string.IsNullOrEmpty(data.InviteId)) return;
 
+            // Blocked user isolation: Automatically reject and suppress any invites from blocked users
+            if (_friendsStore.IsBlocked(data.InviterUserId.ToString()))
+            {
+                Debug.Log($"[LobbyInviteManager] Suppressed and rejected lobby invite from blocked player: {data.InviterUserId}");
+                _lobby.RejectInvite(data.InviteId, null);
+                return;
+            }
+
+            string inviterPuidStr = data.InviterUserId != null ? data.InviterUserId.ToString() : string.Empty;
+            if (FriendsManager.Instance != null && FriendsManager.Instance.IsPendingJoinRequestTarget(inviterPuidStr))
+            {
+                FriendsManager.Instance.ClearPendingJoinRequest(inviterPuidStr);
+                NotificationManager.Show("Join request accepted! Joining lobby...", NotificationType.Normal);
+                AcceptInvite(data.InviteId, null);
+                return;
+            }
+
+            string inviterName = data.InviterDisplayName;
+            if (string.IsNullOrWhiteSpace(inviterName) || inviterName == "Unknown Player" || inviterName == "Player")
+            {
+                if (_friendsStore.TryGetFriend(data.InviterUserId.ToString(), out CrossPlayFriendEntry friend))
+                {
+                    inviterName = friend.displayName;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(inviterName))
+            {
+                inviterName = "Player";
+            }
+
             var inviteModel = new LobbyInviteModel
             {
                 InviteId = data.InviteId,
                 LobbyId = data.LobbyId,
                 HostAddress = data.HostAddress,
                 JoinCode = data.JoinCode,
-                InviterDisplayName = !string.IsNullOrEmpty(data.InviterDisplayName) ? data.InviterDisplayName : "Unknown Player",
+                InviterDisplayName = inviterName,
                 InviterUserId = data.InviterUserId,
                 AvailableSlots = data.AvailableSlots,
                 MaxMembers = data.MaxMembers,

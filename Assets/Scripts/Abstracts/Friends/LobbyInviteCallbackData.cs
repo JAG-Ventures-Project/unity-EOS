@@ -2,7 +2,6 @@ using Epic.OnlineServices;
 
 namespace EOS
 {
-    // AI implementation: Data container dispatched when a remote player sends a lobby invitation
     public class LobbyInviteCallbackData
     {
         public string InviteId { get; set; }
