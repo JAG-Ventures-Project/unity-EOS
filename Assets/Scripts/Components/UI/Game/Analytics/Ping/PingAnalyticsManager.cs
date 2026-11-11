@@ -31,7 +31,9 @@ namespace EOS.UI.Analytics
 
         [Header("Settings")]
         [Tooltip("Interval in seconds between ping broadcasts from host to clients.")]
-        [SerializeField] private float updateInterval = 5.0f;
+        [SerializeField] private float updateInterval = 2.0f;
+        [Tooltip("Include the host player in the ping list display.")]
+        [SerializeField] private bool includeHostInList = true;
 
         public float UpdateInterval => updateInterval;
 
@@ -40,6 +42,7 @@ namespace EOS.UI.Analytics
         private readonly Dictionary<int, string> _playerNames = new Dictionary<int, string>();
         private List<PlayerPingData> _cachedPings = new List<PlayerPingData>();
         private Coroutine _broadcastCoroutine;
+        private bool _hasSentName;
 
         public IReadOnlyList<PlayerPingData> LatestPings => _cachedPings;
 
@@ -70,18 +73,45 @@ namespace EOS.UI.Analytics
 
             StopBroadcastRoutine();
             _cachedPings.Clear();
+            _hasSentName = false;
         }
 
         private void Start()
         {
-            // In GameScene, all players are already connected
+            RegisterHandlers();
             SendClientRegisterName();
 
-            // Only the host runs the server broadcast routine
             if (NetworkServer.active)
             {
                 StartBroadcastRoutine();
                 BroadcastPingList();
+            }
+        }
+
+        private void Update()
+        {
+            // Dynamically start broadcasting whenever the server becomes active (e.g. host started in-scene via HUD)
+            if (NetworkServer.active)
+            {
+                if (_broadcastCoroutine == null)
+                {
+                    RegisterHandlers();
+                    StartBroadcastRoutine();
+                    BroadcastPingList();
+                }
+            }
+            else
+            {
+                if (_broadcastCoroutine != null)
+                {
+                    StopBroadcastRoutine();
+                }
+            }
+
+            // Ensure the client registers its display name with the server once connected
+            if (NetworkClient.isConnected && !_hasSentName)
+            {
+                SendClientRegisterName();
             }
         }
 
@@ -108,6 +138,7 @@ namespace EOS.UI.Analytics
 
         private void HandleClientDisconnected()
         {
+            _hasSentName = false;
             _cachedPings.Clear();
             OnPingsUpdated?.Invoke(_cachedPings);
         }
@@ -165,13 +196,21 @@ namespace EOS.UI.Analytics
             List<PlayerPingData> list = new List<PlayerPingData>();
             if (!NetworkServer.active) return list;
 
+            if (includeHostInList)
+            {
+                string hostName = !string.IsNullOrWhiteSpace(EpicTransport.EOSSDKComponent.DisplayName)
+                    ? EpicTransport.EOSSDKComponent.DisplayName
+                    : "Host";
+                list.Add(new PlayerPingData(0, $"{hostName} (Host)", 0));
+            }
+
             foreach (NetworkConnectionToClient conn in NetworkServer.connections.Values)
             {
                 if (conn == null || IsHostConnection(conn)) continue;
 
                 int pingMs = Mathf.Max(0, Mathf.RoundToInt((float)(conn.rtt * 1000.0)));
 
-                if (!_playerNames.TryGetValue(conn.connectionId, out string playerName))
+                if (!_playerNames.TryGetValue(conn.connectionId, out string playerName) || string.IsNullOrWhiteSpace(playerName))
                 {
                     playerName = EOSNetworkManager.Instance != null
                         ? EOSNetworkManager.Instance.GetPlayerDisplayName(conn)
@@ -217,6 +256,7 @@ namespace EOS.UI.Analytics
 
         private void HandleClientConnected()
         {
+            _hasSentName = false;
             SendClientRegisterName();
         }
 
@@ -224,10 +264,15 @@ namespace EOS.UI.Analytics
         {
             if (NetworkClient.isConnected)
             {
+                string nameToSend = !string.IsNullOrWhiteSpace(EpicTransport.EOSSDKComponent.DisplayName)
+                    ? EpicTransport.EOSSDKComponent.DisplayName
+                    : (!string.IsNullOrWhiteSpace(AuthPreferences.LastGuestName) ? AuthPreferences.LastGuestName : "Player");
+
                 NetworkClient.Send(new RegisterPlayerNameMessage
                 {
-                    playerName = EpicTransport.EOSSDKComponent.DisplayName
+                    playerName = nameToSend
                 });
+                _hasSentName = true;
             }
         }
 

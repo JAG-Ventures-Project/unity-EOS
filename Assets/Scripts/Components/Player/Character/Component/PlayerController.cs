@@ -140,10 +140,11 @@ namespace Minimap.FPC
         /// </summary>
         public void HandleInputs()
         {
-            _moveInput = _moveAction.ReadValue<Vector2>();
-            _isSprinting = _sprintAction.IsPressed();
+            bool isCursorLocked = Cursor.lockState == CursorLockMode.Locked;
+            _moveInput = isCursorLocked ? _moveAction.ReadValue<Vector2>() : Vector2.zero;
+            _isSprinting = isCursorLocked && _sprintAction.IsPressed();
 
-            _cameraRotationInput = Cursor.lockState == CursorLockMode.Locked ? _cameraLookAction.ReadValue<Vector2>() : Vector2.zero;
+            _cameraRotationInput = isCursorLocked ? _cameraLookAction.ReadValue<Vector2>() : Vector2.zero;
             _cameraController.InputsListener(_cameraRotationInput);
 
             // _playerPhysics.HandleRotation(_cameraController.HorizontalRotation);
