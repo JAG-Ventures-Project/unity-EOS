@@ -19,6 +19,16 @@ namespace EOS.Auth
         public ProductUserId LocalProductUserId { get; private set; } = null;
         public bool IsLoggedIn => LocalProductUserId != null;
         public static event Action<ProductUserId> OnLoginSuccess;
+
+        public static void TriggerLoginSuccess(ProductUserId localUserId)
+        {
+            if (_instance != null)
+            {
+                _instance.LocalProductUserId = localUserId;
+            }
+            OnLoginSuccess?.Invoke(localUserId);
+        }
+
         private readonly ConnectInterface _connectInterface;
 
         private Callback<GetTicketForWebApiResponse_t> _steamTicketCallback;
@@ -207,3 +217,4 @@ namespace EOS.Auth
         #endregion
     }
 }
+

@@ -303,13 +303,7 @@ namespace EpicTransport {
                     ClientId = apiKeys.epicClientId,
                     ClientSecret = apiKeys.epicClientSecret
                 },
-                TickBudgetInMilliseconds = tickBudgetInMilliseconds,
-                Flags =
-#if UNITY_EDITOR
-                    PlatformFlags.LoadingInEditor
-#else
-                    PlatformFlags.None
-#endif
+                TickBudgetInMilliseconds = tickBudgetInMilliseconds
             };
 
             if (EOS == null) {
