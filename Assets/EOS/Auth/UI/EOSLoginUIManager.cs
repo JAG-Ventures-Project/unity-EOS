@@ -1,4 +1,4 @@
-﻿using TMPro;
+using TMPro;
 using EOS.Core;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,11 +11,13 @@ namespace EOS.Auth
     public class EOSLoginManager : MonoBehaviour
     {
         [Header("UI References")]
-        [SerializeField] private TMP_InputField playerName;
-        [SerializeField] private Button guestLoginButton;
         [SerializeField] private Button epicGamesLoginButton;
         [SerializeField] private Button steamLoginButton;
         [SerializeField] private Toggle rememberAccountToggle;
+
+        [Header("Optional Guest Login")]
+        [SerializeField] private Button guestLoginButton;
+        [SerializeField] private TMP_InputField playerName;
 
         [Header("Navigation")]
         [SerializeField, HideInInspector] private string nextSceneName = "GameScene";
@@ -37,7 +39,7 @@ namespace EOS.Auth
 
             if (playerName != null)
             {
-                playerName.text = AuthPreferences.LastGuestName;
+                playerName.text = GuestLoginManager.LastGuestName;
             }
 
             if (rememberAccountToggle != null)
@@ -46,9 +48,9 @@ namespace EOS.Auth
                 rememberAccountToggle.onValueChanged.AddListener(OnRememberAccountToggleValueChanged);
             }
 
-            guestLoginButton?.onClick.AddListener(GuestLogin);
             epicGamesLoginButton?.onClick.AddListener(EpicGamesLogin);
             steamLoginButton?.onClick.AddListener(SteamLogin);
+            guestLoginButton?.onClick.AddListener(GuestLogin);
         }
 
         private void Start()
@@ -71,19 +73,20 @@ namespace EOS.Auth
         private void GuestLogin()
         {
             SetButtonsInteractable(false);
-            ConnectManager.Instance.LoginAsGuest(playerName.text, rememberAccountToggle.isOn, HandleLoginResult);
+            string cleanName = playerName != null ? playerName.text : "Guest";
+            GuestLoginManager.LoginAsGuest(cleanName, rememberAccountToggle != null && rememberAccountToggle.isOn, HandleLoginResult);
         }
 
         private void EpicGamesLogin()
         {
             SetButtonsInteractable(false);
-            AuthManager.Instance.LoginWithEpic(rememberAccountToggle.isOn, HandleLoginResult);
+            AuthManager.Instance.LoginWithEpic(rememberAccountToggle != null && rememberAccountToggle.isOn, HandleLoginResult);
         }
 
         private void SteamLogin()
         {
             SetButtonsInteractable(false);
-            ConnectManager.Instance.LoginWithSteam(rememberAccountToggle.isOn, HandleLoginResult);
+            ConnectManager.Instance.LoginWithSteam(rememberAccountToggle != null && rememberAccountToggle.isOn, HandleLoginResult);
         }
 
         private void HandleLoginResult(bool success, string error)

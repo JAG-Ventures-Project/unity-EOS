@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace EOS.Auth
 {
@@ -14,7 +14,6 @@ namespace EOS.Auth
     {
         private const string KeyLastProvider = "EOS_LastLoginProvider";
         private const string KeyRememberEpic = "EOS_RememberEpicAccount";
-        private const string KeyLastGuestName = "EOS_LastGuestName";
 
         public static LoginProvider LastLoginProvider
         {
@@ -32,16 +31,6 @@ namespace EOS.Auth
             set
             {
                 PlayerPrefs.SetInt(KeyRememberEpic, value ? 1 : 0);
-                PlayerPrefs.Save();
-            }
-        }
-
-        public static string LastGuestName
-        {
-            get => PlayerPrefs.GetString(KeyLastGuestName, string.Empty);
-            set
-            {
-                PlayerPrefs.SetString(KeyLastGuestName, value);
                 PlayerPrefs.Save();
             }
         }

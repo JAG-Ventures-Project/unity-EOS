@@ -1,5 +1,4 @@
-﻿using System;
-using EOS.Test.Cursor;
+using System;
 using EOS.Lobby;
 using EOS.Auth;
 using System.Collections;
@@ -598,7 +597,8 @@ namespace EOS.Friends
         public void OpenOverlay()
         {
             _isOpen = true;
-            CursorManager.Instance?.SetCursorLocked(false);
+            UnityEngine.Cursor.lockState = CursorLockMode.None;
+            UnityEngine.Cursor.visible = true;
             UpdateLocalPlayerHeader();
             RefreshSocialData();
 

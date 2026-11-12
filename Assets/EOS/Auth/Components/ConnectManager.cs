@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Core;
 using UnityEngine;
 using Epic.OnlineServices;
@@ -39,57 +39,6 @@ namespace EOS.Auth
                 SteamUser.CancelAuthTicket(EOSSDKManager.SteamAuthTicket);
                 EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
             }
-        }
-
-        /// <summary>
-        /// Logs in as a Guest using the local machine's Device ID and updates AuthPreferences.
-        /// </summary>
-        public void LoginAsGuest(string displayName, bool rememberMe, Action<bool, string> onComplete)
-        {
-            CancelSteamTicket();
-
-            string cleanName = string.IsNullOrWhiteSpace(displayName) ? "Guest" : displayName.Trim();
-
-            var createDeviceIdOptions = new CreateDeviceIdOptions
-            {
-                DeviceModel = SystemInfo.deviceModel ?? "PC Windows"
-            };
-
-            _connectInterface.CreateDeviceId(createDeviceIdOptions, null, (createCb) =>
-            {
-                if (createCb.ResultCode != Result.Success && createCb.ResultCode != Result.DuplicateNotAllowed)
-                {
-                    CompleteOperation(onComplete, false, $"CreateDeviceId failed: {createCb.ResultCode}");
-                    return;
-                }
-
-                PerformConnectLogin(ExternalCredentialType.DeviceidAccessToken, null, cleanName, (success, error) =>
-                {
-                    if (success)
-                    {
-                        EpicTransport.EOSSDKComponent.DisplayName = cleanName;
-                        if (rememberMe)
-                        {
-                            AuthPreferences.LastLoginProvider = LoginProvider.Guest;
-                            AuthPreferences.LastGuestName = cleanName;
-                        }
-                        else
-                        {
-                            AuthPreferences.LastLoginProvider = LoginProvider.None;
-                        }
-                    }
-
-                    onComplete?.Invoke(success, error);
-                });
-            });
-        }
-
-        /// <summary>
-        /// Logs in as a Guest without persisting remember-me preference.
-        /// </summary>
-        public void LoginAsGuest(string displayName, Action<bool, string> onComplete)
-        {
-            LoginAsGuest(displayName, false, onComplete);
         }
 
         /// <summary>
@@ -194,7 +143,11 @@ namespace EOS.Auth
             });
         }
 
-        private void PerformConnectLogin(ExternalCredentialType credentialType, string token, string displayName, Action<bool, string> onComplete)
+        /// <summary>
+        /// Authenticates with the EOS Connect interface using the specified external credentials.
+        /// Can be used for production credentials (Steam, Epic) or test credentials (e.g. Device ID for guest testing).
+        /// </summary>
+        public void PerformConnectLogin(ExternalCredentialType credentialType, string token, string displayName, Action<bool, string> onComplete)
         {
             var loginOptions = new LoginOptions
             {

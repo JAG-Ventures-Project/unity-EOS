@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Core;
 using System.Text;
 using System.Collections.Generic;
@@ -47,7 +47,12 @@ namespace EOS.Lobby
         public event Action<LobbyInviteCallbackData> OnLobbyInviteReceived;
 
         private const string BucketId = "GameLobby";
-        private const string CodeCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+        /// <summary>
+        /// Optional delegate for custom lobby join code generation (e.g., 5-character short codes provided by test components).
+        /// When null, CurrentLobbyId is used directly as the join code.
+        /// </summary>
+        public static Func<string> CustomJoinCodeGenerator { get; set; }
 
         private const ulong InvalidNotificationId = Epic.OnlineServices.Common.InvalidNotificationid;
 
@@ -174,7 +179,7 @@ namespace EOS.Lobby
                 return;
             }
             CurrentLobbyId = data.LobbyId;
-            CurrentJoinCode = GenerateShortCode(5);
+            CurrentJoinCode = CustomJoinCodeGenerator != null ? CustomJoinCodeGenerator.Invoke() : CurrentLobbyId;
             IsLobbyOwner = true;
             LobbyPreferences.SetInLobby(_localProductUserId, CurrentLobbyId, isOwner: true);
             // Set the searchable Short Code and Host Address attributes
@@ -1209,17 +1214,6 @@ namespace EOS.Lobby
             AreAllJoinersReady = (joinerCount == 0) || allReady;
             OnReadyStatusChanged?.Invoke(AreAllJoinersReady);
             return AreAllJoinersReady;
-        }
-
-        private static string GenerateShortCode(int length)
-        {
-            var builder = new StringBuilder(length);
-            var random = new System.Random();
-            for (int i = 0; i < length; i++)
-            {
-                builder.Append(CodeCharacters[random.Next(CodeCharacters.Length)]);
-            }
-            return builder.ToString();
         }
 
         #region Operation Completion Helpers
