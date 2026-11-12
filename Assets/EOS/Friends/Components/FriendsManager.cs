@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Notification;
 using EOS.P2P;
 using EOS.Lobby;
@@ -53,6 +53,7 @@ namespace EOS.Friends
         private readonly List<FriendModel> _incomingRequests = new();
         private readonly List<FriendModel> _outgoingRequests = new();
         private List<PlatformFriend> _cachedPlatformFriends = new();
+        private const float PeerOnlineTimeoutSeconds = 45f;
         private readonly Dictionary<string, DateTime> _onlinePuids = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, FriendPresenceState> _peerPresence = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _peerLobbyId = new(StringComparer.OrdinalIgnoreCase);
@@ -220,11 +221,15 @@ namespace EOS.Friends
         private void HandleLobbyPresenceEvent(string hostAddress)
         {
             UpdateLobbyPresence();
+            _lastLocalPresence = GetLocalPresenceState();
+            PingAllFriends();
         }
 
         private void HandleLobbyLeftEvent()
         {
             UpdateLobbyPresence();
+            _lastLocalPresence = GetLocalPresenceState();
+            PingAllFriends();
         }
 
         private void HandleLobbyPlayerEvent(ProductUserId _)
@@ -273,7 +278,18 @@ namespace EOS.Friends
                 }
                 else if (friend.Presence == FriendPresenceState.InLobby || friend.Presence == FriendPresenceState.InMatch)
                 {
-                    friend.Presence = FriendPresenceState.Online;
+                    if (!string.IsNullOrEmpty(key) && _peerPresence.TryGetValue(key, out FriendPresenceState peerState) && _onlinePuids.TryGetValue(key, out DateTime puidSeen) && (DateTime.UtcNow - puidSeen).TotalSeconds < PeerOnlineTimeoutSeconds)
+                    {
+                        friend.Presence = peerState;
+                    }
+                    else if (!string.IsNullOrEmpty(key) && _onlinePuids.TryGetValue(key, out DateTime lastSeen) && (DateTime.UtcNow - lastSeen).TotalSeconds < PeerOnlineTimeoutSeconds)
+                    {
+                        friend.Presence = FriendPresenceState.Online;
+                    }
+                    else
+                    {
+                        friend.Presence = FriendPresenceState.Offline;
+                    }
                 }
             }
 
@@ -285,7 +301,7 @@ namespace EOS.Friends
         {
             _platformProvider = GetCurrentPlatform() switch
             {
-                LoginProvider.Steam => new SteamFriendsProvider(),
+                LoginProvider.Steam => EOSSDKManager.SteamService.CreateFriendsProvider(),
                 LoginProvider.Epic => new EpicFriendsProvider(_platformHandle, AuthManager.Instance),
                 _ => null,
             };
@@ -495,7 +511,7 @@ namespace EOS.Friends
             {
                 return FriendPresenceState.InMatch;
             }
-            if (UseLobbySystem)
+            if (UseLobbySystem && _lobby != null && _lobby.IsInLobby)
             {
                 return _lobby.HasGameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
             }
@@ -610,7 +626,7 @@ namespace EOS.Friends
 
                 FriendPresenceState presence = pf.Presence;
 
-                if (!string.IsNullOrEmpty(puid) && _peerPresence.TryGetValue(puid, out FriendPresenceState peerState) && _onlinePuids.TryGetValue(puid, out DateTime puidSeen) && (DateTime.UtcNow - puidSeen).TotalSeconds < 120)
+                if (!string.IsNullOrEmpty(puid) && _peerPresence.TryGetValue(puid, out FriendPresenceState peerState) && _onlinePuids.TryGetValue(puid, out DateTime puidSeen) && (DateTime.UtcNow - puidSeen).TotalSeconds < PeerOnlineTimeoutSeconds)
                 {
                     presence = peerState;
                 }
@@ -621,7 +637,7 @@ namespace EOS.Friends
                 {
                     presence = gameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
                 }
-                else if (!string.IsNullOrEmpty(puid) && _onlinePuids.TryGetValue(puid, out DateTime lastSeen) && (DateTime.UtcNow - lastSeen).TotalSeconds < 120)
+                else if (!string.IsNullOrEmpty(puid) && _onlinePuids.TryGetValue(puid, out DateTime lastSeen) && (DateTime.UtcNow - lastSeen).TotalSeconds < PeerOnlineTimeoutSeconds)
                 {
                     presence = FriendPresenceState.Online;
                 }
@@ -686,7 +702,7 @@ namespace EOS.Friends
                 FriendPresenceState presence = FriendPresenceState.Offline;
                 string cpPuid = cf.productUserId;
 
-                if (!string.IsNullOrEmpty(cpPuid) && _peerPresence.TryGetValue(cpPuid, out FriendPresenceState peerState) && _onlinePuids.TryGetValue(cpPuid, out DateTime puidSeen) && (DateTime.UtcNow - puidSeen).TotalSeconds < 120)
+                if (!string.IsNullOrEmpty(cpPuid) && _peerPresence.TryGetValue(cpPuid, out FriendPresenceState peerState) && _onlinePuids.TryGetValue(cpPuid, out DateTime puidSeen) && (DateTime.UtcNow - puidSeen).TotalSeconds < PeerOnlineTimeoutSeconds)
                 {
                     presence = peerState;
                 }
@@ -696,7 +712,7 @@ namespace EOS.Friends
                 {
                     presence = gameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
                 }
-                else if (!string.IsNullOrEmpty(cpPuid) && _onlinePuids.TryGetValue(cpPuid, out DateTime lastSeen) && (DateTime.UtcNow - lastSeen).TotalSeconds < 120)
+                else if (!string.IsNullOrEmpty(cpPuid) && _onlinePuids.TryGetValue(cpPuid, out DateTime lastSeen) && (DateTime.UtcNow - lastSeen).TotalSeconds < PeerOnlineTimeoutSeconds)
                 {
                     presence = FriendPresenceState.Online;
                 }

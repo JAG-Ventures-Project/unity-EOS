@@ -7,7 +7,7 @@ namespace EOS.Auth
 {
     /// <summary>
     /// Standalone Device-ID-based Guest Login for development and test workflows.
-    /// Operates directly on the EOS ConnectInterface with zero dependency on ConnectManager.
+    /// Obtains a local Device ID and connects via ConnectManager.
     /// </summary>
     public static class GuestLoginManager
     {
@@ -24,7 +24,7 @@ namespace EOS.Auth
         }
 
         /// <summary>
-        /// Logs in as a Guest using the local machine's Device ID directly via EOS ConnectInterface.
+        /// Logs in as a Guest using the local machine's Device ID via ConnectManager.
         /// </summary>
         public static void LoginAsGuest(string displayName, bool rememberMe, Action<bool, string> onComplete)
         {
@@ -51,70 +51,34 @@ namespace EOS.Auth
                     return;
                 }
 
-                PerformDeviceLogin(connectInterface, cleanName, rememberMe, onComplete);
-            });
-        }
-
-        private static void PerformDeviceLogin(ConnectInterface connectInterface, string displayName, bool rememberMe, Action<bool, string> onComplete)
-        {
-            var loginOptions = new LoginOptions
-            {
-                Credentials = new Credentials
-                {
-                    Type = ExternalCredentialType.DeviceidAccessToken,
-                    Token = null
-                },
-                UserLoginInfo = new UserLoginInfo { DisplayName = displayName }
-            };
-
-            connectInterface.Login(loginOptions, null, (loginCb) =>
-            {
-                if (loginCb.ResultCode == Result.Success)
-                {
-                    HandleLoginSuccess(loginCb.LocalUserId, displayName, rememberMe, onComplete);
-                }
-                else if (loginCb.ResultCode == Result.InvalidUser)
-                {
-                    Debug.Log("[GuestLoginManager] First time guest login: creating EOS user...");
-                    var createUserOptions = new CreateUserOptions { ContinuanceToken = loginCb.ContinuanceToken };
-                    connectInterface.CreateUser(createUserOptions, null, (createCb) =>
+                ConnectManager.Instance.PerformConnectLogin(
+                    ExternalCredentialType.DeviceidAccessToken,
+                    null,
+                    cleanName,
+                    (success, error) =>
                     {
-                        if (createCb.ResultCode == Result.Success)
-                        {
-                            HandleLoginSuccess(createCb.LocalUserId, displayName, rememberMe, onComplete);
-                        }
-                        else
-                        {
-                            onComplete?.Invoke(false, $"CreateUser failed: {createCb.ResultCode}");
-                        }
+                            if (success)
+                            {
+                                EpicTransport.EOSSDKComponent.DisplayName = cleanName;
+                                if (rememberMe)
+                                {
+                                    AuthPreferences.LastLoginProvider = LoginProvider.Guest;
+                                    LastGuestName = cleanName;
+                                }
+                                else
+                                {
+                                    AuthPreferences.LastLoginProvider = LoginProvider.None;
+                                }
+
+                                Debug.Log($"[GuestLoginManager] Guest connect login succeeded! DisplayName: {cleanName}");
+                                onComplete?.Invoke(true, null);
+                            }
+                            else
+                            {
+                                onComplete?.Invoke(false, error);
+                            }
                     });
-                }
-                else
-                {
-                    onComplete?.Invoke(false, $"Connect Login failed: {loginCb.ResultCode}");
-                }
             });
-        }
-
-        private static void HandleLoginSuccess(ProductUserId localUserId, string displayName, bool rememberMe, Action<bool, string> onComplete)
-        {
-            EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(localUserId);
-            EpicTransport.EOSSDKComponent.DisplayName = displayName;
-
-            if (rememberMe)
-            {
-                AuthPreferences.LastLoginProvider = LoginProvider.Guest;
-                LastGuestName = displayName;
-            }
-            else
-            {
-                AuthPreferences.LastLoginProvider = LoginProvider.None;
-            }
-
-            Debug.Log($"[GuestLoginManager] Guest login succeeded! PUID: {localUserId}");
-            ConnectManager.TriggerLoginSuccess(localUserId);
-            onComplete?.Invoke(true, null);
         }
     }
 }
-

@@ -1,4 +1,4 @@
-﻿using EOS.Auth;
+using EOS.Auth;
 using EOS.Core;
 using UnityEngine;
 
@@ -36,9 +36,9 @@ namespace EOS.Friends
                     return EOSSDKManager.LocalDisplayName;
                 }
 
-                if (Platform == LoginProvider.Steam && SteamManager.Initialized)
+                if (Platform == LoginProvider.Steam && EOSSDKManager.SteamService.IsAvailable)
                 {
-                    string steamName = Steamworks.SteamFriends.GetPersonaName();
+                    string steamName = EOSSDKManager.SteamService.GetPersonaName();
                     if (!string.IsNullOrEmpty(steamName)) return steamName;
                 }
 
@@ -51,13 +51,13 @@ namespace EOS.Friends
             get
             {
                 if (AuthManager.Instance != null && AuthManager.Instance.IsLoggedIn) return LoginProvider.Epic;
-                if (EOSSDKManager.SteamAuthTicket != Steamworks.HAuthTicket.Invalid) return LoginProvider.Steam;
+                if (EOSSDKManager.SteamService.HasActiveTicket) return LoginProvider.Steam;
                 return AuthPreferences.LastLoginProvider;
             }
         }
 
         public LoginProvider Platform => CurrentPlatform;
 
-        public Texture2D AvatarTexture => Platform == LoginProvider.Steam ? SteamProfileUtility.GetLocalAvatar() : null;
+        public Texture2D AvatarTexture => Platform == LoginProvider.Steam ? EOSSDKManager.SteamService.GetAvatar() : null;
     }
 }

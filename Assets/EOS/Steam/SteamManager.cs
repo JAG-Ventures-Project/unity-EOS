@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+#if STEAMWORKS
+using UnityEngine;
 using Steamworks;
 
 namespace EOS.Core
@@ -12,6 +13,7 @@ namespace EOS.Core
         private static bool s_everInitialized;
 
         public static bool Initialized => s_instance != null && s_everInitialized;
+        public static SteamManager Instance => s_instance;
 
         private void Awake()
         {
@@ -78,3 +80,15 @@ namespace EOS.Core
         }
     }
 }
+#else
+using UnityEngine;
+
+namespace EOS.Core
+{
+    [DisallowMultipleComponent]
+    public class SteamManager : MonoBehaviour
+    {
+        public static bool Initialized => false;
+    }
+}
+#endif

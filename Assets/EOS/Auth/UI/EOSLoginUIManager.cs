@@ -80,13 +80,13 @@ namespace EOS.Auth
         private void EpicGamesLogin()
         {
             SetButtonsInteractable(false);
-            AuthManager.Instance.LoginWithEpic(rememberAccountToggle != null && rememberAccountToggle.isOn, HandleLoginResult);
+            EpicLoginManager.LoginWithEpic(rememberAccountToggle != null && rememberAccountToggle.isOn, HandleLoginResult);
         }
 
         private void SteamLogin()
         {
             SetButtonsInteractable(false);
-            ConnectManager.Instance.LoginWithSteam(rememberAccountToggle != null && rememberAccountToggle.isOn, HandleLoginResult);
+            SteamLoginManager.LoginWithSteam(rememberAccountToggle != null && rememberAccountToggle.isOn, HandleLoginResult);
         }
 
         private void HandleLoginResult(bool success, string error)

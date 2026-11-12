@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Core;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Auth;
@@ -98,45 +98,7 @@ namespace EOS.Auth
         /// </summary>
         public void LoginWithEpic(bool rememberMe, Action<bool, string> onComplete)
         {
-            ConnectManager.Instance?.CancelSteamTicket();
-            IsRememberMe = rememberMe;
-
-            Login(fallbackToAccountPortal: true, (authSuccess, authError) =>
-            {
-                if (!authSuccess)
-                {
-                    CompleteOperation(onComplete, false, authError);
-                    return;
-                }
-
-                CompleteEpicConnectLogin(rememberMe, onComplete);
-            });
-        }
-
-        private void CompleteEpicConnectLogin(bool rememberMe, Action<bool, string> onComplete)
-        {
-            string token = CopyUserAuthToken();
-            if (string.IsNullOrEmpty(token))
-            {
-                CompleteOperation(onComplete, false, "Failed to copy Epic user auth token.");
-                return;
-            }
-
-            ConnectManager.Instance.LoginWithEpic(token, (connectSuccess, connectError) =>
-            {
-                if (!connectSuccess)
-                {
-                    CompleteOperation(onComplete, false, connectError);
-                    return;
-                }
-
-                GetDisplayName((epicDisplayName) =>
-                {
-                    EpicTransport.EOSSDKComponent.DisplayName = epicDisplayName;
-                    AuthPreferences.LastLoginProvider = rememberMe ? LoginProvider.Epic : LoginProvider.None;
-                    CompleteOperation(onComplete, true);
-                });
-            });
+            EpicLoginManager.LoginWithEpic(rememberMe, onComplete);
         }
 
         /// <summary>
@@ -159,7 +121,8 @@ namespace EOS.Auth
                     {
                         if (authSuccess)
                         {
-                            CompleteEpicConnectLogin(true, onComplete);
+                            string token = CopyUserAuthToken();
+                            EpicLoginManager.LoginWithToken(token, true, onComplete);
                         }
                         else
                         {
@@ -168,9 +131,9 @@ namespace EOS.Auth
                     });
                     break;
 
-                case LoginProvider.Steam when SteamManager.Initialized:
+                case LoginProvider.Steam when SteamLoginManager.IsAvailable:
                     Debug.Log("[AuthManager] Auto-logging in via Steam...");
-                    ConnectManager.Instance.LoginWithSteam(true, onComplete);
+                    SteamLoginManager.LoginWithSteam(true, onComplete);
                     break;
 
                 default:

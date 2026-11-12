@@ -1,4 +1,5 @@
-﻿using System;
+#if STEAMWORKS
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Steamworks;
@@ -81,3 +82,4 @@ namespace EOS.Core
         }
     }
 }
+#endif

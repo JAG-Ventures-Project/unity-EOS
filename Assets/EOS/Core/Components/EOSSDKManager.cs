@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.Assertions;
-using Steamworks;
 using EOS.Auth;
 using System;
 
@@ -18,7 +17,7 @@ namespace EOS.Core
 
         public static EOSSDKManager Instance { get; private set; }
 
-        public static HAuthTicket SteamAuthTicket { get; set; } = HAuthTicket.Invalid;
+        public static ISteamService SteamService { get; set; } = new NullSteamService();
         public static string LocalDisplayName
         {
             get => EpicTransport.EOSSDKComponent.DisplayName;

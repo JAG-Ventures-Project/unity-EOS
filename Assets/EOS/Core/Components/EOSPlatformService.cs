@@ -1,10 +1,9 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Platform;
 using UnityEngine;
 using UnityEngine.Assertions;
-using Steamworks;
 using Unity.Profiling;
 
 namespace EOS.Core
@@ -160,10 +159,9 @@ namespace EOS.Core
             try
             {
                 // Cancel active Steam ticket if running
-                if (EOSSDKManager.SteamAuthTicket != HAuthTicket.Invalid && SteamAPI.IsSteamRunning())
+                if (EOSSDKManager.SteamService.HasActiveTicket)
                 {
-                    SteamUser.CancelAuthTicket(EOSSDKManager.SteamAuthTicket);
-                    EOSSDKManager.SteamAuthTicket = HAuthTicket.Invalid;
+                    EOSSDKManager.SteamService.CancelTicket();
                 }
 
                 OnBeforeShutdown?.Invoke();

@@ -119,6 +119,11 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &33717072 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1705726011959066908, guid: a2c30d5086916e443bab958094934ae0, type: 3}
+  m_PrefabInstance: {fileID: 3116410764289831024}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &42831503 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5136221782067378004, guid: c2c75e5a9d610fc4b829f50822741f18, type: 3}
@@ -502,6 +507,18 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1452227543252998853, guid: a2c30d5086916e443bab958094934ae0, type: 3}
   m_PrefabInstance: {fileID: 3116410764289831024}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1532215048
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 33717072}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2fe77eafe7906b42aa59e796cd4ecd6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EOS.Steam::EOS.Core.SteamManager
 --- !u!1 &1554580040
 GameObject:
   m_ObjectHideFlags: 0
@@ -777,10 +794,17 @@ PrefabInstance:
       propertyPath: m_Name
       value: EOSManager
       objectReference: {fileID: 0}
+    - target: {fileID: 7559256550136421865, guid: a2c30d5086916e443bab958094934ae0, type: 3}
+      propertyPath: haveAuth
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1705726011959066908, guid: a2c30d5086916e443bab958094934ae0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1532215048}
   m_SourcePrefab: {fileID: 100100000, guid: a2c30d5086916e443bab958094934ae0, type: 3}
 --- !u!1001 &5674211530461555684
 PrefabInstance:

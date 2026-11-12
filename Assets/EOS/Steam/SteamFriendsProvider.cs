@@ -1,4 +1,5 @@
-﻿using System;
+#if STEAMWORKS
+using System;
 using EOS.Auth;
 using EOS.Core;
 using System.Collections.Generic;
@@ -73,3 +74,4 @@ namespace EOS.Friends
         }
     }
 }
+#endif

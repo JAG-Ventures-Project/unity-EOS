@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Auth;
 using System.Collections.Generic;
 using Epic.OnlineServices;
@@ -104,7 +104,7 @@ namespace EOS.Friends
                     PlatformUserId = friendId.ToString(),
                     DisplayName = displayName,
                     Platform = LoginProvider.Epic,
-                    Presence = FriendPresenceState.Online,
+                    Presence = FriendPresenceState.Offline,
                     AvatarTexture = null
                 });
             }

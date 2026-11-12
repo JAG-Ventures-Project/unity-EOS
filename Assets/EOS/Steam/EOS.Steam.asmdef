@@ -1,0 +1,26 @@
+{
+    "name": "EOS.Steam",
+    "rootNamespace": "EOS",
+    "references": [
+        "GUID:ef1f852720904275979744b5f4573920",
+        "GUID:68bd7fdb68ef2684e982e8a9825b18a5"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "STEAMWORKS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.rlabrecque.steamworks.net",
+            "expression": "",
+            "define": "STEAMWORKS"
+        }
+    ],
+    "noEngineReferences": false
+}
+
