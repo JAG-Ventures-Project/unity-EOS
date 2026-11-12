@@ -1,6 +1,8 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.Assertions;
 using Steamworks;
+using EOS.Auth;
+using System;
 
 namespace EOS.Core
 {
@@ -9,10 +11,10 @@ namespace EOS.Core
     /// Handles frame updates (Tick), scene persistence, and application quit shutdown.
     /// </summary>
     [DefaultExecutionOrder(-10)]
-    [RequireComponent(typeof(SteamManager))]
     public class EOSSDKManager : MonoBehaviour, IEOSSDKManager
     {
         [SerializeField] private EosApiKey eosApiKey;
+        [SerializeField] private bool haveAuth = false;
 
         public static EOSSDKManager Instance { get; private set; }
 
@@ -56,6 +58,10 @@ namespace EOS.Core
             Application.runInBackground = true;
 
             _platformService = new EOSPlatformService();
+            if (!haveAuth)
+            {
+                _platformService.OnPlatformReady += DefaultAuth;
+            }
             _platformService.Initialize(eosApiKey);
         }
 
@@ -67,6 +73,11 @@ namespace EOS.Core
         private void OnApplicationQuit()
         {
             _platformService.Shutdown();
+        }
+
+        private void DefaultAuth()
+        {
+            GuestLoginManager.LoginAsGuest("Guest", true, null);
         }
     }
 }

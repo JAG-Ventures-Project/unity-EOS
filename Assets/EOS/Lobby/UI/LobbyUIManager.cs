@@ -1,4 +1,4 @@
-﻿using EOS.Notification;
+using EOS.Notification;
 using EOS.P2P;
 using EOS.Friends;
 using EOS.Auth;

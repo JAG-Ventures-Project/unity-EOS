@@ -104,7 +104,7 @@ namespace EOS.Lobby
         {
             _localProductUserId = EOSSDKComponent.LocalUserProductId;
 
-            if (!LobbyPreferences.HasOrphanLobby(_localProductUserId, out string orphanLobbyId, out bool isOwner))
+            if (_localProductUserId == null || !LobbyPreferences.HasOrphanLobby(_localProductUserId, out string orphanLobbyId, out bool isOwner))
             {
                 IsCleaningOrphan = false;
                 onComplete?.Invoke();
