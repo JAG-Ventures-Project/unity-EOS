@@ -1,11 +1,9 @@
 // Android NetworkDiscovery Multicast fix
 // https://github.com/vis2k/Mirror/pull/2887
 using UnityEditor;
-using UnityEngine;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using System.Xml;
-using System.IO;
 #if UNITY_ANDROID
 using UnityEditor.Android;
 #endif
@@ -14,13 +12,13 @@ namespace Mirror
 {
     [InitializeOnLoad]
     public class AndroidManifestHelper : IPreprocessBuildWithReport, IPostprocessBuildWithReport
-    #if UNITY_ANDROID
+#if UNITY_ANDROID
 	    , IPostGenerateGradleAndroidProject
-    #endif
+#endif
     {
         public int callbackOrder { get { return 99999; } }
 
-    #if UNITY_ANDROID
+#if UNITY_ANDROID
         public void OnPostGenerateGradleAndroidProject(string path)
 	    {
             string manifestFolder = Path.Combine(path, "src/main");
@@ -60,7 +58,7 @@ namespace Mirror
                    false);
             doc.Save(sourceFile);
         }
-    #endif
+#endif
 
         static void AddOrRemoveTag(XmlDocument doc, string @namespace, string path, string elementName, string name, bool required, bool modifyIfFound, params string[] attrs) // name, value pairs
         {
@@ -109,8 +107,8 @@ namespace Mirror
             }
         }
 
-        public void OnPostprocessBuild(BuildReport report) {}
-	    public void OnPreprocessBuild(BuildReport report) {}
+        public void OnPostprocessBuild(BuildReport report) { }
+        public void OnPreprocessBuild(BuildReport report) { }
     }
 }
 

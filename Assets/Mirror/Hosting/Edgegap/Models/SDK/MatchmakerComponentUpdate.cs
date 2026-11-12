@@ -1,22 +1,22 @@
 using System;
 using System.Text;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
-namespace IO.Swagger.Model {
+namespace IO.Swagger.Model
+{
 
   /// <summary>
   /// 
   /// </summary>
   [DataContract]
-  public class MatchmakerComponentUpdate {
+  public class MatchmakerComponentUpdate
+  {
     /// <summary>
     /// Matchmaker component name. Must be unique.
     /// </summary>
     /// <value>Matchmaker component name. Must be unique.</value>
-    [DataMember(Name="name", EmitDefaultValue=false)]
+    [DataMember(Name = "name", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "name")]
     public string Name { get; set; }
 
@@ -24,7 +24,7 @@ namespace IO.Swagger.Model {
     /// Container repository where the component's image is hosted.
     /// </summary>
     /// <value>Container repository where the component's image is hosted.</value>
-    [DataMember(Name="repository", EmitDefaultValue=false)]
+    [DataMember(Name = "repository", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "repository")]
     public string Repository { get; set; }
 
@@ -32,7 +32,7 @@ namespace IO.Swagger.Model {
     /// Container image to use for this component.
     /// </summary>
     /// <value>Container image to use for this component.</value>
-    [DataMember(Name="image", EmitDefaultValue=false)]
+    [DataMember(Name = "image", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "image")]
     public string Image { get; set; }
 
@@ -40,7 +40,7 @@ namespace IO.Swagger.Model {
     /// Tag of the container image to use for this component.
     /// </summary>
     /// <value>Tag of the container image to use for this component.</value>
-    [DataMember(Name="tag", EmitDefaultValue=false)]
+    [DataMember(Name = "tag", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "tag")]
     public string Tag { get; set; }
 
@@ -48,7 +48,7 @@ namespace IO.Swagger.Model {
     /// Private repo credentials to use for pulling the image, if applicable.
     /// </summary>
     /// <value>Private repo credentials to use for pulling the image, if applicable.</value>
-    [DataMember(Name="credentials", EmitDefaultValue=false)]
+    [DataMember(Name = "credentials", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "credentials")]
     public Object Credentials { get; set; }
 
@@ -57,7 +57,8 @@ namespace IO.Swagger.Model {
     /// Get the string presentation of the object
     /// </summary>
     /// <returns>String presentation of the object</returns>
-    public override string ToString()  {
+    public override string ToString()
+    {
       StringBuilder sb = new StringBuilder();
       sb.Append("class MatchmakerComponentUpdate {\n");
       sb.Append("  Name: ").Append(Name).Append("\n");
@@ -73,9 +74,10 @@ namespace IO.Swagger.Model {
     /// Get the JSON string presentation of the object
     /// </summary>
     /// <returns>JSON string presentation of the object</returns>
-    public string ToJson() {
+    public string ToJson()
+    {
       return JsonConvert.SerializeObject(this, Formatting.Indented);
     }
 
-}
+  }
 }

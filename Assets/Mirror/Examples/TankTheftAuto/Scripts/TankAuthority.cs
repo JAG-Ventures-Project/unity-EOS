@@ -1,8 +1,6 @@
-using System.Collections.Generic;
 using UnityEngine;
 using Mirror.Examples.Common.Controllers.Tank;
 using Mirror.Examples.Common;
-using System.Collections;
 
 namespace Mirror.Examples.TankTheftAuto
 {

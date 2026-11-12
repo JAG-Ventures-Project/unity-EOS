@@ -1,7 +1,6 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
-using Mirror;
 
 namespace Mirror.Examples.TopDownShooter
 {

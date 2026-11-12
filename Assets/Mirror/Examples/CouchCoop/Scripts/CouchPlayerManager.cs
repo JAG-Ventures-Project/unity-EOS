@@ -1,5 +1,4 @@
 using UnityEngine;
-using Mirror;
 
 namespace Mirror.Examples.CouchCoop
 {
@@ -35,7 +34,7 @@ namespace Mirror.Examples.CouchCoop
         [Command]
         public void CmdAddPlayer()
         {
-            if (totalCouchPlayers >= playerKeyJump.Length-1)
+            if (totalCouchPlayers >= playerKeyJump.Length - 1)
             {
                 Debug.Log(name + " - No controls setup for further players.");
                 return;
@@ -62,7 +61,7 @@ namespace Mirror.Examples.CouchCoop
             totalCouchPlayers -= 1;
             NetworkServer.Destroy(couchPlayersList[couchPlayersList.Count - 1]);
             couchPlayersList.RemoveAt(couchPlayersList.Count - 1);
-     
+
         }
     }
 

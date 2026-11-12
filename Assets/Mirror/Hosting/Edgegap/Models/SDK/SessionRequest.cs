@@ -1,22 +1,22 @@
-using System;
 using System.Text;
-using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
-namespace IO.Swagger.Model {
+namespace IO.Swagger.Model
+{
 
   /// <summary>
   /// 
   /// </summary>
   [DataContract]
-  public class SessionRequest {
+  public class SessionRequest
+  {
     /// <summary>
     /// The Unique Identifier of the Session
     /// </summary>
     /// <value>The Unique Identifier of the Session</value>
-    [DataMember(Name="session_id", EmitDefaultValue=false)]
+    [DataMember(Name = "session_id", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "session_id")]
     public string SessionId { get; set; }
 
@@ -24,7 +24,7 @@ namespace IO.Swagger.Model {
     /// Custom ID if Available
     /// </summary>
     /// <value>Custom ID if Available</value>
-    [DataMember(Name="custom_id", EmitDefaultValue=false)]
+    [DataMember(Name = "custom_id", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "custom_id")]
     public string CustomId { get; set; }
 
@@ -32,7 +32,7 @@ namespace IO.Swagger.Model {
     /// The Name of the App you requested
     /// </summary>
     /// <value>The Name of the App you requested</value>
-    [DataMember(Name="app", EmitDefaultValue=false)]
+    [DataMember(Name = "app", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "app")]
     public string App { get; set; }
 
@@ -40,7 +40,7 @@ namespace IO.Swagger.Model {
     /// The name of the App Version you requested
     /// </summary>
     /// <value>The name of the App Version you requested</value>
-    [DataMember(Name="version", EmitDefaultValue=false)]
+    [DataMember(Name = "version", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "version")]
     public string Version { get; set; }
 
@@ -48,7 +48,7 @@ namespace IO.Swagger.Model {
     /// The Name of the App Version you want to deploy, example:    v1.0
     /// </summary>
     /// <value>The Name of the App Version you want to deploy, example:    v1.0</value>
-    [DataMember(Name="deployment_request_id", EmitDefaultValue=false)]
+    [DataMember(Name = "deployment_request_id", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "deployment_request_id")]
     public string DeploymentRequestId { get; set; }
 
@@ -56,7 +56,7 @@ namespace IO.Swagger.Model {
     /// List of Selectors to filter potential Deployment to link and tag the Session
     /// </summary>
     /// <value>List of Selectors to filter potential Deployment to link and tag the Session</value>
-    [DataMember(Name="selectors", EmitDefaultValue=false)]
+    [DataMember(Name = "selectors", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "selectors")]
     public List<SelectorModel> Selectors { get; set; }
 
@@ -65,7 +65,8 @@ namespace IO.Swagger.Model {
     /// Get the string presentation of the object
     /// </summary>
     /// <returns>String presentation of the object</returns>
-    public override string ToString()  {
+    public override string ToString()
+    {
       StringBuilder sb = new StringBuilder();
       sb.Append("class SessionRequest {\n");
       sb.Append("  SessionId: ").Append(SessionId).Append("\n");
@@ -82,9 +83,10 @@ namespace IO.Swagger.Model {
     /// Get the JSON string presentation of the object
     /// </summary>
     /// <returns>JSON string presentation of the object</returns>
-    public string ToJson() {
+    public string ToJson()
+    {
       return JsonConvert.SerializeObject(this, Formatting.Indented);
     }
 
-}
+  }
 }

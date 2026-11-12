@@ -1,7 +1,6 @@
 // wraps Telepathy for use as HLAPI TransportLayer
 using System;
 using System.Net;
-using System.Net.Sockets;
 using UnityEngine;
 
 // Replaced by Kcp November 2020
@@ -16,7 +15,7 @@ namespace Mirror
         public const string Scheme = "tcp4";
 
         public ushort port = 7777;
-        public ushort Port { get => port; set => port=value; }
+        public ushort Port { get => port; set => port = value; }
 
         [Header("Common")]
         [Tooltip("Nagle Algorithm can be disabled by enabling NoDelay")]

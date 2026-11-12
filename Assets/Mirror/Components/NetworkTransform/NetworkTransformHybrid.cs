@@ -7,9 +7,7 @@
 // => which means we don't need teleport detection either
 //
 // several functions are virtual in case someone needs to modify a part.
-using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace Mirror
@@ -55,13 +53,13 @@ namespace Mirror
         [Header("Sensitivity"), Tooltip("Sensitivity of changes needed before an updated state is sent over the network")]
         public float positionSensitivity = 0.01f;
         public float rotationSensitivity = 0.01f;
-        public float scaleSensitivity    = 0.01f;
+        public float scaleSensitivity = 0.01f;
 
         // selective sync //////////////////////////////////////////////////////
         [Header("Selective Sync & interpolation")]
         public bool syncPosition = true;
         public bool syncRotation = true;
-        public bool syncScale    = false;
+        public bool syncScale = false;
 
         // velocity for convenience (animators etc.)
         // this isn't technically NetworkTransforms job, but it's needed by so many projects that we just provide it anyway.
@@ -72,12 +70,12 @@ namespace Mirror
         [Header("Debug")]
         public bool debugDraw;
         public bool showGizmos;
-        public bool  showOverlay;
+        public bool showOverlay;
         public Color overlayColor = new Color(0, 0, 0, 0.5f);
 
         // initialization //////////////////////////////////////////////////////
         // make sure to call this when inheriting too!
-        protected virtual void Awake() {}
+        protected virtual void Awake() { }
 
         protected override void OnValidate()
         {
@@ -131,7 +129,7 @@ namespace Mirror
 
             if (syncPosition) target.localPosition = interpolated.position;
             if (syncRotation) target.localRotation = interpolated.rotation;
-            if (syncScale)    target.localScale    = interpolated.scale;
+            if (syncScale) target.localScale = interpolated.scale;
         }
 
         // store state after baseline sync
@@ -189,16 +187,16 @@ namespace Mirror
 
             if (syncPosition) writer.WriteVector3(position);
             if (syncRotation) writer.WriteQuaternion(rotation);
-            if (syncScale)    writer.WriteVector3(scale);
+            if (syncScale) writer.WriteVector3(scale);
         }
 
         // called on server and on client, depending on SyncDirection
         protected override void OnDeserializeBaseline(NetworkReader reader, byte baselineTick)
         {
             // deserialize
-            Vector3?    position = null;
+            Vector3? position = null;
             Quaternion? rotation = null;
-            Vector3?    scale    = null;
+            Vector3? scale = null;
 
             if (syncPosition)
             {
@@ -212,11 +210,11 @@ namespace Mirror
             }
             if (syncScale)
             {
-                scale    = reader.ReadVector3();
+                scale = reader.ReadVector3();
                 lastDeserializedBaselineScale = scale.Value;
             }
 
-           // debug draw: baseline = yellow
+            // debug draw: baseline = yellow
             if (debugDraw && position.HasValue) Debug.DrawLine(position.Value, position.Value + Vector3.up, Color.yellow, 10f);
 
             // if baseline counts as delta, insert it into snapshot buffer too
@@ -243,7 +241,7 @@ namespace Mirror
 
             if (syncPosition) writer.WriteVector3(position);
             if (syncRotation) writer.WriteQuaternion(rotation);
-            if (syncScale)    writer.WriteVector3(scale);
+            if (syncScale) writer.WriteVector3(scale);
         }
 
         // called on server and on client, depending on SyncDirection
@@ -255,7 +253,7 @@ namespace Mirror
 
             if (syncPosition) position = reader.ReadVector3();
             if (syncRotation) rotation = reader.ReadQuaternion();
-            if (syncScale)    scale    = reader.ReadVector3();
+            if (syncScale) scale = reader.ReadVector3();
 
             // debug draw: delta = white
             if (debugDraw && position.HasValue) Debug.DrawLine(position.Value, position.Value + Vector3.up, Color.white, 10f);
@@ -395,7 +393,7 @@ namespace Mirror
                     // for example, if the object is moving @ 1 Hz, always put it back by 1s.
                     // that's how we still get smooth movement even with a global timeline.
                     NetworkTime.time - sendInterval, // == NetworkClient.localTimeline from snapshot interpolation
-                    // END CUSTOM CHANGE
+                                                     // END CUSTOM CHANGE
                     out TransformSnapshot from,
                     out TransformSnapshot to,
                     out double t);
@@ -565,11 +563,11 @@ namespace Mirror
             // reset baseline
             lastSerializedBaselinePosition = Vector3.zero;
             lastSerializedBaselineRotation = Quaternion.identity;
-            lastSerializedBaselineScale    = Vector3.one;
+            lastSerializedBaselineScale = Vector3.one;
 
             lastDeserializedBaselinePosition = Vector3.zero;
             lastDeserializedBaselineRotation = Quaternion.identity;
-            lastDeserializedBaselineScale    = Vector3.one;
+            lastDeserializedBaselineScale = Vector3.one;
 
             // Prevent resistance from CharacterController
             // or non-knematic Rigidbodies when teleporting.
@@ -601,7 +599,7 @@ namespace Mirror
 
                 if (syncPosition) writer.WriteVector3(position);
                 if (syncRotation) writer.WriteQuaternion(rotation);
-                if (syncScale)    writer.WriteVector3(scale);
+                if (syncScale) writer.WriteVector3(scale);
             }
         }
 

@@ -1,22 +1,21 @@
-using System;
 using System.Text;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
-namespace IO.Swagger.Model {
+namespace IO.Swagger.Model
+{
 
   /// <summary>
   /// 
   /// </summary>
   [DataContract]
-  public class Pagination {
+  public class Pagination
+  {
     /// <summary>
     /// Current page number
     /// </summary>
     /// <value>Current page number</value>
-    [DataMember(Name="number", EmitDefaultValue=false)]
+    [DataMember(Name = "number", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "number")]
     public int? Number { get; set; }
 
@@ -24,7 +23,7 @@ namespace IO.Swagger.Model {
     /// Next page number
     /// </summary>
     /// <value>Next page number</value>
-    [DataMember(Name="next_page_number", EmitDefaultValue=false)]
+    [DataMember(Name = "next_page_number", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "next_page_number")]
     public int? NextPageNumber { get; set; }
 
@@ -32,14 +31,14 @@ namespace IO.Swagger.Model {
     /// Previous page number
     /// </summary>
     /// <value>Previous page number</value>
-    [DataMember(Name="previous_page_number", EmitDefaultValue=false)]
+    [DataMember(Name = "previous_page_number", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "previous_page_number")]
     public int? PreviousPageNumber { get; set; }
 
     /// <summary>
     /// Gets or Sets Paginator
     /// </summary>
-    [DataMember(Name="paginator", EmitDefaultValue=false)]
+    [DataMember(Name = "paginator", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "paginator")]
     public Paginator Paginator { get; set; }
 
@@ -47,7 +46,7 @@ namespace IO.Swagger.Model {
     /// If there is a next page
     /// </summary>
     /// <value>If there is a next page</value>
-    [DataMember(Name="has_next", EmitDefaultValue=false)]
+    [DataMember(Name = "has_next", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "has_next")]
     public bool? HasNext { get; set; }
 
@@ -55,7 +54,7 @@ namespace IO.Swagger.Model {
     /// If there is a previous page
     /// </summary>
     /// <value>If there is a previous page</value>
-    [DataMember(Name="has_previous", EmitDefaultValue=false)]
+    [DataMember(Name = "has_previous", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "has_previous")]
     public bool? HasPrevious { get; set; }
 
@@ -64,7 +63,8 @@ namespace IO.Swagger.Model {
     /// Get the string presentation of the object
     /// </summary>
     /// <returns>String presentation of the object</returns>
-    public override string ToString()  {
+    public override string ToString()
+    {
       StringBuilder sb = new StringBuilder();
       sb.Append("class Pagination {\n");
       sb.Append("  Number: ").Append(Number).Append("\n");
@@ -81,9 +81,10 @@ namespace IO.Swagger.Model {
     /// Get the JSON string presentation of the object
     /// </summary>
     /// <returns>JSON string presentation of the object</returns>
-    public string ToJson() {
+    public string ToJson()
+    {
       return JsonConvert.SerializeObject(this, Formatting.Indented);
     }
 
-}
+  }
 }

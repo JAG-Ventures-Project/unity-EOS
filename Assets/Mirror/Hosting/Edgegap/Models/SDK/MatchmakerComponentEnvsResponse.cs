@@ -1,22 +1,21 @@
-using System;
 using System.Text;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
-namespace IO.Swagger.Model {
+namespace IO.Swagger.Model
+{
 
   /// <summary>
   /// 
   /// </summary>
   [DataContract]
-  public class MatchmakerComponentEnvsResponse : BaseModel {
+  public class MatchmakerComponentEnvsResponse : BaseModel
+  {
     /// <summary>
     /// Name of the ENV variable.
     /// </summary>
     /// <value>Name of the ENV variable.</value>
-    [DataMember(Name="key", EmitDefaultValue=false)]
+    [DataMember(Name = "key", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "key")]
     public string Key { get; set; }
 
@@ -24,7 +23,7 @@ namespace IO.Swagger.Model {
     /// Value of the ENV variable.
     /// </summary>
     /// <value>Value of the ENV variable.</value>
-    [DataMember(Name="value", EmitDefaultValue=false)]
+    [DataMember(Name = "value", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "value")]
     public string Value { get; set; }
 
@@ -33,7 +32,8 @@ namespace IO.Swagger.Model {
     /// Get the string presentation of the object
     /// </summary>
     /// <returns>String presentation of the object</returns>
-    public override string ToString()  {
+    public override string ToString()
+    {
       StringBuilder sb = new StringBuilder();
       sb.Append("class MatchmakerComponentEnvsResponse {\n");
       sb.Append("  Key: ").Append(Key).Append("\n");
@@ -46,9 +46,10 @@ namespace IO.Swagger.Model {
     /// Get the JSON string presentation of the object
     /// </summary>
     /// <returns>JSON string presentation of the object</returns>
-    public  new string ToJson() {
+    public new string ToJson()
+    {
       return JsonConvert.SerializeObject(this, Formatting.Indented);
     }
 
-}
+  }
 }

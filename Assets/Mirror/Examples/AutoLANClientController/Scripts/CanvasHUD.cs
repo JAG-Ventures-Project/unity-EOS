@@ -1,10 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Mirror;
 using UnityEngine.UI;
 using Mirror.Discovery;
-using UnityEngine.SceneManagement;
 
 namespace Mirror.Examples.AutoLANClientController
 {

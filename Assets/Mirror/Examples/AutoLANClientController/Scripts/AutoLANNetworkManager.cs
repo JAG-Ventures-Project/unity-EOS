@@ -1,7 +1,4 @@
-using System;
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using Mirror;
 using System.Linq;
 
 /*
@@ -71,7 +68,7 @@ namespace Mirror.Examples.AutoLANClientController
             //UnityEngine.Debug.Log("OnDestroy");
         }
 
-#endregion
+        #endregion
 
         #region Start & Stop
 

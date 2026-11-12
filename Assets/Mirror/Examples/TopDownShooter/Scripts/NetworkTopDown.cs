@@ -1,5 +1,4 @@
 using UnityEngine;
-using Mirror;
 
 namespace Mirror.Examples.TopDownShooter
 {
@@ -61,6 +60,6 @@ namespace Mirror.Examples.TopDownShooter
             canvasTopDown.UpdateEnemyUI(enemyCounter);
 #endif
         }
-        
+
     }
 }

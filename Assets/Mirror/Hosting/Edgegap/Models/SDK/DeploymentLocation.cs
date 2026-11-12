@@ -1,22 +1,21 @@
-using System;
 using System.Text;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
-namespace IO.Swagger.Model {
+namespace IO.Swagger.Model
+{
 
   /// <summary>
   /// 
   /// </summary>
   [DataContract]
-  public class DeploymentLocation {
+  public class DeploymentLocation
+  {
     /// <summary>
     /// City of the deployment
     /// </summary>
     /// <value>City of the deployment</value>
-    [DataMember(Name="city", EmitDefaultValue=false)]
+    [DataMember(Name = "city", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "city")]
     public string City { get; set; }
 
@@ -24,7 +23,7 @@ namespace IO.Swagger.Model {
     /// Country of the deployment
     /// </summary>
     /// <value>Country of the deployment</value>
-    [DataMember(Name="country", EmitDefaultValue=false)]
+    [DataMember(Name = "country", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "country")]
     public string Country { get; set; }
 
@@ -32,7 +31,7 @@ namespace IO.Swagger.Model {
     /// Continent of the deployment
     /// </summary>
     /// <value>Continent of the deployment</value>
-    [DataMember(Name="continent", EmitDefaultValue=false)]
+    [DataMember(Name = "continent", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "continent")]
     public string Continent { get; set; }
 
@@ -40,7 +39,7 @@ namespace IO.Swagger.Model {
     /// Administrative division of the deployment
     /// </summary>
     /// <value>Administrative division of the deployment</value>
-    [DataMember(Name="administrative_division", EmitDefaultValue=false)]
+    [DataMember(Name = "administrative_division", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "administrative_division")]
     public string AdministrativeDivision { get; set; }
 
@@ -48,7 +47,7 @@ namespace IO.Swagger.Model {
     /// Timezone of the deployment
     /// </summary>
     /// <value>Timezone of the deployment</value>
-    [DataMember(Name="timezone", EmitDefaultValue=false)]
+    [DataMember(Name = "timezone", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "timezone")]
     public string Timezone { get; set; }
 
@@ -56,7 +55,7 @@ namespace IO.Swagger.Model {
     /// Latitude of the deployment
     /// </summary>
     /// <value>Latitude of the deployment</value>
-    [DataMember(Name="latitude", EmitDefaultValue=false)]
+    [DataMember(Name = "latitude", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "latitude")]
     public decimal? Latitude { get; set; }
 
@@ -64,7 +63,7 @@ namespace IO.Swagger.Model {
     /// Longitude of the deployment
     /// </summary>
     /// <value>Longitude of the deployment</value>
-    [DataMember(Name="longitude", EmitDefaultValue=false)]
+    [DataMember(Name = "longitude", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "longitude")]
     public decimal? Longitude { get; set; }
 
@@ -73,7 +72,8 @@ namespace IO.Swagger.Model {
     /// Get the string presentation of the object
     /// </summary>
     /// <returns>String presentation of the object</returns>
-    public override string ToString()  {
+    public override string ToString()
+    {
       StringBuilder sb = new StringBuilder();
       sb.Append("class DeploymentLocation {\n");
       sb.Append("  City: ").Append(City).Append("\n");
@@ -91,9 +91,10 @@ namespace IO.Swagger.Model {
     /// Get the JSON string presentation of the object
     /// </summary>
     /// <returns>JSON string presentation of the object</returns>
-    public string ToJson() {
+    public string ToJson()
+    {
       return JsonConvert.SerializeObject(this, Formatting.Indented);
     }
 
-}
+  }
 }

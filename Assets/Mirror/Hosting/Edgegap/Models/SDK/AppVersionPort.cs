@@ -1,22 +1,21 @@
-using System;
 using System.Text;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
-namespace IO.Swagger.Model {
+namespace IO.Swagger.Model
+{
 
   /// <summary>
   /// 
   /// </summary>
   [DataContract]
-  public class AppVersionPort {
+  public class AppVersionPort
+  {
     /// <summary>
     /// The Port to Expose your service
     /// </summary>
     /// <value>The Port to Expose your service</value>
-    [DataMember(Name="port", EmitDefaultValue=false)]
+    [DataMember(Name = "port", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "port")]
     public int? Port { get; set; }
 
@@ -24,7 +23,7 @@ namespace IO.Swagger.Model {
     /// Available protocols: TCP, UDP, TCP/UDP, HTTP, HTTPS, WS or WSS
     /// </summary>
     /// <value>Available protocols: TCP, UDP, TCP/UDP, HTTP, HTTPS, WS or WSS</value>
-    [DataMember(Name="protocol", EmitDefaultValue=false)]
+    [DataMember(Name = "protocol", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "protocol")]
     public string Protocol { get; set; }
 
@@ -32,7 +31,7 @@ namespace IO.Swagger.Model {
     /// If the port must be verified by our port validations
     /// </summary>
     /// <value>If the port must be verified by our port validations</value>
-    [DataMember(Name="to_check", EmitDefaultValue=false)]
+    [DataMember(Name = "to_check", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "to_check")]
     public bool? ToCheck { get; set; }
 
@@ -40,7 +39,7 @@ namespace IO.Swagger.Model {
     /// Enabling with HTTP or WS will inject a sidecar proxy that upgrades the connection with TLS
     /// </summary>
     /// <value>Enabling with HTTP or WS will inject a sidecar proxy that upgrades the connection with TLS</value>
-    [DataMember(Name="tls_upgrade", EmitDefaultValue=false)]
+    [DataMember(Name = "tls_upgrade", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "tls_upgrade")]
     public bool? TlsUpgrade { get; set; }
 
@@ -48,7 +47,7 @@ namespace IO.Swagger.Model {
     /// An optional name for the port for easier handling
     /// </summary>
     /// <value>An optional name for the port for easier handling</value>
-    [DataMember(Name="name", EmitDefaultValue=false)]
+    [DataMember(Name = "name", EmitDefaultValue = false)]
     [JsonProperty(PropertyName = "name")]
     public string Name { get; set; }
 
@@ -57,7 +56,8 @@ namespace IO.Swagger.Model {
     /// Get the string presentation of the object
     /// </summary>
     /// <returns>String presentation of the object</returns>
-    public override string ToString()  {
+    public override string ToString()
+    {
       StringBuilder sb = new StringBuilder();
       sb.Append("class AppVersionPort {\n");
       sb.Append("  Port: ").Append(Port).Append("\n");
@@ -73,9 +73,10 @@ namespace IO.Swagger.Model {
     /// Get the JSON string presentation of the object
     /// </summary>
     /// <returns>JSON string presentation of the object</returns>
-    public string ToJson() {
+    public string ToJson()
+    {
       return JsonConvert.SerializeObject(this, Formatting.Indented);
     }
 
-}
+  }
 }

@@ -1,7 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using Mirror;
 using UnityEngine.UI;
 
 namespace Mirror.Examples.AutoLANClientController

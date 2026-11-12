@@ -1,6 +1,5 @@
 // Add this component to a Player object with collider.
 // Automatically keeps a history for lag compensation.
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 

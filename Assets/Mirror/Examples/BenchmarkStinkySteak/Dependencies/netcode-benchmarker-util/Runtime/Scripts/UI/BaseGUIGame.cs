@@ -1,6 +1,5 @@
 // using TMPro; // MIRROR CHANGE
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace StinkySteak.NetcodeBenchmark
 {
@@ -40,14 +39,14 @@ namespace StinkySteak.NetcodeBenchmark
         // MIRROR CHANGE: OnGUI instead of Canvas + TextMeshPro
         protected virtual void Initialize()
         {
-        //     _test_1.ButtonExecute.onClick.AddListener(StressTest_1);
-        //     _test_2.ButtonExecute.onClick.AddListener(StressTest_2);
-        //     _test_3.ButtonExecute.onClick.AddListener(StressTest_3);
-        //
-        //     _buttonStartServer.onClick.AddListener(StartServer);
-        //     _buttonStartClient.onClick.AddListener(StartClient);
+            //     _test_1.ButtonExecute.onClick.AddListener(StressTest_1);
+            //     _test_2.ButtonExecute.onClick.AddListener(StressTest_2);
+            //     _test_3.ButtonExecute.onClick.AddListener(StressTest_3);
+            //
+            //     _buttonStartServer.onClick.AddListener(StartServer);
+            //     _buttonStartClient.onClick.AddListener(StartClient);
         }
-        protected virtual void OnCustomGUI() {}
+        protected virtual void OnCustomGUI() { }
         protected virtual void OnGUI()
         {
             GUILayout.BeginArea(new Rect(100, 100, 300, 400));

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 using Mirror;
 
@@ -39,7 +38,7 @@ public class Box : NetworkBehaviour
     /// <para>This could be triggered by NetworkServer.Listen() for objects in the scene, or by NetworkServer.Spawn() for objects that are dynamically created.</para>
     /// <para>This will be called for objects on a "host" as well as for object on a dedicated server.</para>
     /// </summary>
-    public override void OnStartServer() 
+    public override void OnStartServer()
     {
         rigidBody.isKinematic = false;
     }
@@ -75,7 +74,7 @@ public class Box : NetworkBehaviour
     /// Called when the local player object is being stopped.
     /// <para>This happens before OnStopClient(), as it may be triggered by an ownership message from the server, or because the player object is being destroyed. This is an appropriate place to deactivate components or functionality that should only be active for the local player, such as cameras and input.</para>
     /// </summary>
-    public override void OnStopLocalPlayer() {}
+    public override void OnStopLocalPlayer() { }
 
     /// <summary>
     /// This is invoked on behaviours that have authority, based on context and <see cref="NetworkIdentity.hasAuthority">NetworkIdentity.hasAuthority</see>.
