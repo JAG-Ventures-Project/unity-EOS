@@ -28,6 +28,7 @@ namespace EOS.Auth
             }
             OnLoginSuccess?.Invoke(localUserId);
         }
+
         private readonly ConnectInterface _connectInterface;
 
         private Callback<GetTicketForWebApiResponse_t> _steamTicketCallback;
@@ -216,3 +217,4 @@ namespace EOS.Auth
         #endregion
     }
 }
+
