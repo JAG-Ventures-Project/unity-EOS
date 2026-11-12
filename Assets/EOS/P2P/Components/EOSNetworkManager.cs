@@ -6,7 +6,7 @@ using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
 using EpicTransport;
 
-namespace EOS
+namespace EOS.P2P
 {
     [RequireComponent(typeof(EosTransport))]
     [RequireComponent(typeof(EOSSDKComponent))]
