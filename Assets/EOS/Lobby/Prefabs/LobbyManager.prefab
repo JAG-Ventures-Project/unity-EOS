@@ -1,0 +1,87 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8081311266757137436
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5939093352443937452}
+  - component: {fileID: 4324081056830046311}
+  m_Layer: 0
+  m_Name: LobbyManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5939093352443937452
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8081311266757137436}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4324081056830046311
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8081311266757137436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4dffd950b098f9a4a9db067c3b0f4218, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EOS.LobbyUIManager
+  menuPanel: {fileID: 0}
+  inLobbyPanel: {fileID: 0}
+  createLobbyButton: {fileID: 0}
+  joinCodeInputField: {fileID: 0}
+  joinLobbyButton: {fileID: 0}
+  maxLobbyMembers: 4
+  allowJoinInProgress: 0
+  roomCodeText: {fileID: 0}
+  copyCodeButton: {fileID: 0}
+  memberCountText: {fileID: 0}
+  leaveLobbyButton: {fileID: 0}
+  startGameButton: {fileID: 0}
+  playerCardPrefab: {fileID: 1662016418297976466, guid: 30d75d3cfb4631149a956f2358ca4b11, type: 3}
+  playerCardsParent: {fileID: 0}
+  playerCardImages:
+  - {fileID: 21300000, guid: c7ac2d1eca24bc64e8c53c93a234a8df, type: 3}
+  - {fileID: 21300000, guid: 2bc65774d3719e64b8b9cf64719db3cc, type: 3}
+  - {fileID: 21300000, guid: cb56a81e1c62a2845b11449ab919bdd7, type: 3}
+  - {fileID: 21300000, guid: 05fc8faeb4bda2e468f35b0d002dab7d, type: 3}
+  - {fileID: 21300000, guid: dafcc410fa3f75440a7aded42b8b94bd, type: 3}
+  - {fileID: 21300000, guid: 5910a0a4dfaa45442bc3bb002b577fc2, type: 3}
+  - {fileID: 21300000, guid: e459369412a87b944877c474fa189226, type: 3}
+  - {fileID: 21300000, guid: 7909a43fdcb285c4bbb606f5d2ef5dee, type: 3}
+  - {fileID: 21300000, guid: ed884c7452cc8bc499972121bb386462, type: 3}
+  - {fileID: 21300000, guid: 7dd24f1633cf51a4aa368f3cbabdb03e, type: 3}
+  - {fileID: 21300000, guid: 03c85bb52f9db7248b6f706c1d10e27e, type: 3}
+  - {fileID: 21300000, guid: 1b5cc0f0257e46640be42b5f560953f8, type: 3}
+  - {fileID: 21300000, guid: 54d445e9d63c1854ebdb088824b93457, type: 3}
+  - {fileID: 21300000, guid: 1f4a9d67c6b8edd49866e427bcd0c7e5, type: 3}
+  - {fileID: 21300000, guid: 45ada83f5c1e17a4bafae1dd2c60ec35, type: 3}
+  - {fileID: 21300000, guid: dd4dc063750795548a5bc4981cd35b4d, type: 3}
+  - {fileID: 21300000, guid: 5d81cf512bfdd4f448cd093a85f5ac08, type: 3}
+  - {fileID: 21300000, guid: 1270ca1c318e6e44fafad394d43c42f9, type: 3}
+  - {fileID: 21300000, guid: d96460e6121a34840b803c34863554b9, type: 3}
+  - {fileID: 21300000, guid: ec9ba5882e4559243b0b5059e8acce04, type: 3}
+  - {fileID: 21300000, guid: d14833981f7393e41a6143a6dcfcbddb, type: 3}
+  - {fileID: 21300000, guid: e7fe947b118e4d746bf116689f285923, type: 3}
+  - {fileID: 21300000, guid: b13f86364ac50df488989dae5e283ceb, type: 3}
+  - {fileID: 21300000, guid: e2b303d50a2948f42a1610372bcdb51e, type: 3}
+  nextSceneName: GameScene
+  nextScene: {fileID: 102900000, guid: f8481fe3d187bc84493de2584603434a, type: 3}
