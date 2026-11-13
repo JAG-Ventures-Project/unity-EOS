@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using EOS.Auth;
+using EOS.Core;
 using System.Text;
 using Epic.OnlineServices;
 using Epic.OnlineServices.P2P;
@@ -32,8 +33,8 @@ namespace EOS.Friends
         {
             if (_isActive) return;
 
-            _p2p = EpicTransport.EOSSDKComponent.GetP2PInterface();
-            _localPuid = ConnectManager.Instance?.LocalProductUserId ?? EpicTransport.EOSSDKComponent.LocalUserProductId;
+            _p2p = EOSSDKManager.PlatformInterface?.GetP2PInterface();
+            _localPuid = ConnectManager.Instance?.LocalProductUserId;
             try
             {
                 var relayOptions = new SetRelayControlOptions { RelayControl = RelayControl.AllowRelays };

@@ -1,9 +1,10 @@
-﻿#if MIRROR
+#if MIRROR
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
+using EOS.Core;
 using EOS.P2P;
 
 namespace EOS.Test.Analytics
@@ -232,7 +233,7 @@ namespace EOS.Test.Analytics
             {
                 NetworkClient.Send(new RegisterPlayerNameMessage
                 {
-                    playerName = EpicTransport.EOSSDKComponent.DisplayName
+                    playerName = EOSSDKManager.LocalDisplayName
                 });
                 _hasSentName = true;
             }

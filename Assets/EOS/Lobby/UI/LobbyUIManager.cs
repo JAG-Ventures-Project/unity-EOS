@@ -415,7 +415,7 @@ namespace EOS.Lobby
             card.transform.SetAsLastSibling();
 
             string playerName = (userId == _lobby.LocalProductUserId)
-                ? EpicTransport.EOSSDKComponent.DisplayName
+                ? EOSSDKManager.LocalDisplayName
                 : _lobby.GetMemberDisplayName(userId);
 
             bool canKick = _lobby.IsLobbyOwner && (userId != _lobby.LocalProductUserId);

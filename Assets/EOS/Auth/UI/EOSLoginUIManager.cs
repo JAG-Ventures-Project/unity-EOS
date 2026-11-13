@@ -57,7 +57,7 @@ namespace EOS.Auth
         {
             SetButtonsInteractable(false);
 
-            AuthManager.Instance.TryAutoLogin((success, error) =>
+            SessionAuthCoordinator.TryAutoLogin((success, error) =>
             {
                 if (success)
                 {

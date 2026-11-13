@@ -2,12 +2,14 @@ using UnityEngine;
 using UnityEngine.Assertions;
 using EOS.Auth;
 using System;
+using Epic.OnlineServices.Platform;
 
 namespace EOS.Core
 {
     /// <summary>
     /// MonoBehaviour runner that hosts EOSPlatformService within Unity's lifecycle.
     /// Handles frame updates (Tick), scene persistence, and application quit shutdown.
+    /// Owns local display name and platform convenience accessors decoupled from EOSPlatformService.
     /// </summary>
     [DefaultExecutionOrder(-10)]
     public class EOSSDKManager : MonoBehaviour, IEOSSDKManager
@@ -16,14 +18,12 @@ namespace EOS.Core
         [SerializeField] private bool haveAuth = false;
 
         public static EOSSDKManager Instance { get; private set; }
+        public static PlatformInterface PlatformInterface => Instance?.Service?.PlatformInterface;
+        public static event Action OnShutdown;
 
         public static ISteamService SteamService { get; set; } = new NullSteamService();
         public static INetworkSessionService NetworkSession => NetworkService.Current;
-        public static string LocalDisplayName
-        {
-            get => EpicTransport.EOSSDKComponent.DisplayName;
-            set => EpicTransport.EOSSDKComponent.DisplayName = value;
-        }
+        public static string LocalDisplayName { get; set; } = "Player";
 
         public EosApiKey EosApiKey
         {
@@ -58,11 +58,17 @@ namespace EOS.Core
             Application.runInBackground = true;
 
             _platformService = new EOSPlatformService();
+            _platformService.OnBeforeShutdown += HandlePlatformBeforeShutdown;
             if (!haveAuth)
             {
                 _platformService.OnPlatformReady += DefaultAuth;
             }
             _platformService.Initialize(eosApiKey);
+        }
+
+        private void HandlePlatformBeforeShutdown()
+        {
+            OnShutdown?.Invoke();
         }
 
         private void Update()
@@ -72,7 +78,11 @@ namespace EOS.Core
 
         private void OnApplicationQuit()
         {
-            _platformService.Shutdown();
+            if (SteamService.HasActiveTicket)
+            {
+                SteamService.CancelTicket();
+            }
+            _platformService?.Shutdown();
         }
 
         private void DefaultAuth()

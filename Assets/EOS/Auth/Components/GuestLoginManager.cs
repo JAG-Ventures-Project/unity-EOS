@@ -1,4 +1,5 @@
 using System;
+using EOS.Core;
 using UnityEngine;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Connect;
@@ -30,7 +31,7 @@ namespace EOS.Auth
         {
             string cleanName = string.IsNullOrWhiteSpace(displayName) ? "Guest" : displayName.Trim();
 
-            var platform = EpicTransport.EOSSDKComponent.PlatformInterface;
+            var platform = EOSSDKManager.PlatformInterface;
             var connectInterface = platform?.GetConnectInterface();
             if (connectInterface == null)
             {
@@ -57,26 +58,26 @@ namespace EOS.Auth
                     cleanName,
                     (success, error) =>
                     {
-                            if (success)
+                        if (success)
+                        {
+                            EOSSDKManager.LocalDisplayName = cleanName;
+                            if (rememberMe)
                             {
-                                EpicTransport.EOSSDKComponent.DisplayName = cleanName;
-                                if (rememberMe)
-                                {
-                                    AuthPreferences.LastLoginProvider = LoginProvider.Guest;
-                                    LastGuestName = cleanName;
-                                }
-                                else
-                                {
-                                    AuthPreferences.LastLoginProvider = LoginProvider.None;
-                                }
-
-                                Debug.Log($"[GuestLoginManager] Guest connect login succeeded! DisplayName: {cleanName}");
-                                onComplete?.Invoke(true, null);
+                                AuthPreferences.LastLoginProvider = LoginProvider.Guest;
+                                LastGuestName = cleanName;
                             }
                             else
                             {
-                                onComplete?.Invoke(false, error);
+                                AuthPreferences.LastLoginProvider = LoginProvider.None;
                             }
+
+                            Debug.Log($"[GuestLoginManager] Guest connect login succeeded! DisplayName: {cleanName}");
+                            onComplete?.Invoke(true, null);
+                        }
+                        else
+                        {
+                            onComplete?.Invoke(false, error);
+                        }
                     });
             });
         }

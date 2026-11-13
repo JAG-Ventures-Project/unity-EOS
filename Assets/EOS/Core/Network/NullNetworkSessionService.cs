@@ -33,6 +33,7 @@ namespace EOS.Core
         }
 
         public Func<string, string> CustomAddressDisplayNameResolver { get; set; }
+        public bool IsPlayerInSession(string productUserId, string displayName = null) => false;
     }
 }
 

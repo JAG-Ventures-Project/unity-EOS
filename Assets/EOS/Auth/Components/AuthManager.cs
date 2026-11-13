@@ -16,8 +16,6 @@ namespace EOS.Auth
     /// </summary>
     public class AuthManager
     {
-        private const string EpicRememberMeKey = "EOS_RememberEpicAccount";
-
         private readonly PlatformInterface _platformInterface;
         private readonly AuthInterface _authInterface;
         private EpicAccountId _epicId;
@@ -25,7 +23,11 @@ namespace EOS.Auth
         public EpicAccountId LocalEpicAccountId => _epicId;
         public bool IsLoggedIn => _epicId != null && _epicId.IsValid();
 
-        public static event Action OnLoggedOut;
+        public static event Action OnLoggedOut
+        {
+            add => SessionAuthCoordinator.OnLoggedOut += value;
+            remove => SessionAuthCoordinator.OnLoggedOut -= value;
+        }
 
         /// <summary>
         /// Gets or sets whether to remember the user's Epic Games login across sessions via Persistent Authorization.
@@ -46,15 +48,21 @@ namespace EOS.Auth
 
         private static AuthManager _instance;
         public static AuthManager Instance => _instance ??=
-            (EpicTransport.EOSSDKComponent.PlatformInterface != null
-                ? new AuthManager(EpicTransport.EOSSDKComponent.PlatformInterface)
+            (EOSSDKManager.PlatformInterface != null
+                ? new AuthManager(EOSSDKManager.PlatformInterface)
                 : null);
 
         public AuthManager(PlatformInterface platformInterface = null)
         {
-            _platformInterface = platformInterface ?? EpicTransport.EOSSDKComponent.PlatformInterface;
+            _platformInterface = platformInterface ?? EOSSDKManager.PlatformInterface;
             _authInterface = _platformInterface?.GetAuthInterface();
-            EpicTransport.EOSSDKComponent.OnShutdown += () => _instance = null;
+            EOSSDKManager.OnShutdown += HandleShutdown;
+        }
+
+        private void HandleShutdown()
+        {
+            EOSSDKManager.OnShutdown -= HandleShutdown;
+            _instance = null;
         }
 
         /// <summary>
@@ -99,71 +107,6 @@ namespace EOS.Auth
         public void LoginWithEpic(bool rememberMe, Action<bool, string> onComplete)
         {
             EpicLoginManager.LoginWithEpic(rememberMe, onComplete);
-        }
-
-        /// <summary>
-        /// Checks launcher arguments, remembered Epic credentials, or Steam for automatic silent login.
-        /// </summary>
-        public void TryAutoLogin(Action<bool, string> onComplete)
-        {
-            if (HasExchangeCode())
-            {
-                Debug.Log("[AuthManager] Epic Games Launcher exchange code detected. Auto-logging in...");
-                LoginWithEpic(false, onComplete);
-                return;
-            }
-
-            switch (AuthPreferences.LastLoginProvider)
-            {
-                case LoginProvider.Epic when AuthPreferences.RememberEpicAccount:
-                    Debug.Log("[AuthManager] Auto-logging in via Epic PersistentAuth...");
-                    LoginWithPersistentAuth(fallbackToAccountPortal: false, (authSuccess, authError) =>
-                    {
-                        if (authSuccess)
-                        {
-                            string token = CopyUserAuthToken();
-                            EpicLoginManager.LoginWithToken(token, true, onComplete);
-                        }
-                        else
-                        {
-                            onComplete?.Invoke(false, authError);
-                        }
-                    });
-                    break;
-
-                case LoginProvider.Steam when SteamLoginManager.IsAvailable:
-                    Debug.Log("[AuthManager] Auto-logging in via Steam...");
-                    SteamLoginManager.LoginWithSteam(true, onComplete);
-                    break;
-
-                default:
-                    onComplete?.Invoke(false, null);
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Signs out of all authentication providers, cancels Steam tickets, and clears session data.
-        /// </summary>
-        public void LogoutAll(Action<bool, string> onComplete = null)
-        {
-            void FinalizeLogout()
-            {
-                ConnectManager.Instance?.CancelSteamTicket();
-                ConnectManager.Instance?.ResetSession();
-                AuthPreferences.ClearSession();
-                OnLoggedOut?.Invoke();
-                onComplete?.Invoke(true, null);
-            }
-
-            if (IsLoggedIn)
-            {
-                Logout(forgetUser: true, (success, error) => FinalizeLogout());
-            }
-            else
-            {
-                FinalizeLogout();
-            }
         }
 
         /// <summary>

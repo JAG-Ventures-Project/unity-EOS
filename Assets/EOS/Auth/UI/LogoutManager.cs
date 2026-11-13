@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Core;
 using UnityEngine;
 using UnityEngine.UI;
@@ -49,7 +49,7 @@ namespace EOS.Auth
             SetButtonsInteractable(false);
             OnLogoutInitiated?.Invoke();
 
-            AuthManager.Instance.LogoutAll(HandleLogoutCallback);
+            SessionAuthCoordinator.LogoutAll(HandleLogoutCallback);
         }
 
         private void HandleLogoutCallback(bool success, string error)

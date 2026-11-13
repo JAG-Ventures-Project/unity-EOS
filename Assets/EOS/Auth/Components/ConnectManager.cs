@@ -1,4 +1,5 @@
 using System;
+using EOS.Core;
 using UnityEngine;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Connect;
@@ -14,12 +15,14 @@ namespace EOS.Auth
     {
         private static ConnectManager _instance;
         public static ConnectManager Instance => _instance ??=
-            (EpicTransport.EOSSDKComponent.PlatformInterface != null
-                ? new ConnectManager(EpicTransport.EOSSDKComponent.PlatformInterface)
+            (EOSSDKManager.PlatformInterface != null
+                ? new ConnectManager(EOSSDKManager.PlatformInterface)
                 : null);
 
         public ProductUserId LocalProductUserId { get; private set; } = null;
-        public bool IsLoggedIn => LocalProductUserId != null;
+        public string LocalProductUserIdString =>
+            (LocalProductUserId != null && LocalProductUserId.IsValid()) ? LocalProductUserId.ToString() : string.Empty;
+        public bool IsLoggedIn => LocalProductUserId != null && LocalProductUserId.IsValid();
         public static event Action<ProductUserId> OnLoginSuccess;
 
         public static void TriggerLoginSuccess(ProductUserId localUserId)
@@ -35,9 +38,15 @@ namespace EOS.Auth
 
         public ConnectManager(PlatformInterface platformInterface = null)
         {
-            var platform = platformInterface ?? EpicTransport.EOSSDKComponent.PlatformInterface;
+            var platform = platformInterface ?? EOSSDKManager.PlatformInterface;
             _connectInterface = platform?.GetConnectInterface();
-            EpicTransport.EOSSDKComponent.OnShutdown += () => _instance = null;
+            EOSSDKManager.OnShutdown += HandleShutdown;
+        }
+
+        private void HandleShutdown()
+        {
+            EOSSDKManager.OnShutdown -= HandleShutdown;
+            _instance = null;
         }
 
         #region Provider Login Links
@@ -94,7 +103,6 @@ namespace EOS.Auth
                 if (loginCb.ResultCode == Result.Success)
                 {
                     LocalProductUserId = loginCb.LocalUserId;
-                    EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
                     Debug.Log($"[ConnectManager] {credentialType} connect login success! PUID: {LocalProductUserId}");
                     OnLoginSuccess?.Invoke(LocalProductUserId);
                     CompleteOperation(onComplete, true);
@@ -122,7 +130,6 @@ namespace EOS.Auth
                 if (createCb.ResultCode == Result.Success)
                 {
                     LocalProductUserId = createCb.LocalUserId;
-                    EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(LocalProductUserId);
                     Debug.Log($"[ConnectManager] Created new EOS user! PUID: {LocalProductUserId}");
                     OnLoginSuccess?.Invoke(LocalProductUserId);
                     CompleteOperation(onComplete, true);
@@ -138,7 +145,6 @@ namespace EOS.Auth
         {
             CancelSteamTicket();
             LocalProductUserId = null;
-            EpicTransport.EOSSDKComponent.SetExternalLocalProductUserId(null);
             Debug.Log("[ConnectManager] Connect session reset.");
         }
 

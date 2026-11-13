@@ -59,7 +59,7 @@ namespace EOS.Auth
                     {
                         AuthManager.Instance.GetDisplayName((epicDisplayName) =>
                         {
-                            EpicTransport.EOSSDKComponent.DisplayName = epicDisplayName;
+                            EOSSDKManager.LocalDisplayName = epicDisplayName;
                             AuthPreferences.LastLoginProvider = rememberMe ? LoginProvider.Epic : LoginProvider.None;
                             Debug.Log($"[EpicLoginManager] Epic connect login succeeded! DisplayName: {epicDisplayName}");
                             onComplete?.Invoke(true, null);

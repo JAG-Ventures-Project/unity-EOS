@@ -31,16 +31,15 @@ namespace EpicTransport {
         public Epic.OnlineServices.ExternalCredentialType connectInterfaceCredentialType = Epic.OnlineServices.ExternalCredentialType.DeviceidAccessToken;
         public string deviceModel = "PC Windows 64bit";
         [SerializeField] private string displayName = "User";
-        private static string s_externalDisplayName;
         public static string DisplayName {
             get {
-                if (!string.IsNullOrEmpty(s_externalDisplayName)) {
-                    return s_externalDisplayName;
+                if (!string.IsNullOrEmpty(global::EOS.Core.EOSSDKManager.LocalDisplayName)) {
+                    return global::EOS.Core.EOSSDKManager.LocalDisplayName;
                 }
                 return (instance != null && !string.IsNullOrEmpty(instance.displayName)) ? instance.displayName : "Player";
             }
             set {
-                s_externalDisplayName = value;
+                global::EOS.Core.EOSSDKManager.LocalDisplayName = value;
                 if (instance != null) instance.displayName = value;
             }
         }
@@ -81,6 +80,11 @@ namespace EpicTransport {
 
         public static event Action OnShutdown;
 
+        static EOSSDKComponent()
+        {
+            global::EOS.Core.EOSSDKManager.OnShutdown += TriggerShutdown;
+        }
+
         public static void TriggerShutdown()
         {
             OnShutdown?.Invoke();
@@ -106,7 +110,7 @@ namespace EpicTransport {
 
         private static PlatformInterface ActivePlatform => (instance != null && instance.EOS != null)
             ? instance.EOS
-            : s_externalPlatform;
+            : (global::EOS.Core.EOSSDKManager.PlatformInterface ?? s_externalPlatform);
 
         // Interfaces with safe null checking
         public static Epic.OnlineServices.Achievements.AchievementsInterface GetAchievementsInterface() => ActivePlatform?.GetAchievementsInterface();
@@ -137,7 +141,7 @@ namespace EpicTransport {
         protected ProductUserId localUserProductId;
         public static ProductUserId LocalUserProductId => (instance != null && instance.localUserProductId != null)
             ? instance.localUserProductId
-            : s_externalLocalProductUserId;
+            : (global::EOS.Auth.ConnectManager.Instance?.LocalProductUserId ?? s_externalLocalProductUserId);
 
         protected string localUserProductIdString;
         public static string LocalUserProductIdString => (instance != null && !string.IsNullOrEmpty(instance.localUserProductIdString))
@@ -146,6 +150,8 @@ namespace EpicTransport {
 
         protected bool initialized;
         public static bool Initialized => (instance != null && instance.initialized) ||
+            (global::EOS.Core.EOSSDKManager.Instance?.Service?.IsInitialized == true &&
+             global::EOS.Auth.ConnectManager.Instance?.IsLoggedIn == true) ||
             (s_externalInitializedCheck != null ? s_externalInitializedCheck() : (s_externalPlatform != null && s_externalLocalProductUserId != null));
 
         protected bool isConnecting;
@@ -216,28 +222,7 @@ namespace EpicTransport {
         /// <summary>
         /// Resolves the path to the EOS native SDK library inside the Unity project.
         /// </summary>
-        public static string ResolveEditorLibraryPath() {
-            string dllFileName = Config.LibraryName.EndsWith(".dll") ? Config.LibraryName : Config.LibraryName + ".dll";
-            string[] candidateRelativePaths = {
-                "EOS/EpicOnlineTransport/EOSSDK",
-                "Mirror/Transports/EpicOnlineTransport/EOSSDK",
-                "Mirror/Runtime/Transport/EpicOnlineTransport/EOSSDK"
-            };
-
-            foreach (string relativeDir in candidateRelativePaths) {
-                string candidate = System.IO.Path.Combine(Application.dataPath, relativeDir, dllFileName);
-                if (System.IO.File.Exists(candidate)) {
-                    return candidate;
-                }
-            }
-
-            string[] matches = System.IO.Directory.GetFiles(Application.dataPath, dllFileName, System.IO.SearchOption.AllDirectories);
-            if (matches.Length > 0) {
-                return matches[0];
-            }
-
-            return System.IO.Path.Combine(Application.dataPath, candidateRelativePaths[0], dllFileName);
-        }
+        public static string ResolveEditorLibraryPath() => global::EOS.Core.EOSPlatformService.ResolveEditorLibraryPath();
 #endif
 
         private void Awake() {

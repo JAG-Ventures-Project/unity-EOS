@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using EOS.Auth;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Platform;
 using Epic.OnlineServices.PlayerDataStorage;
@@ -24,24 +25,30 @@ namespace EOS.Core
 
         private static PlayerDataStorageManager _instance;
         public static PlayerDataStorageManager Instance => _instance ??=
-            (EpicTransport.EOSSDKComponent.PlatformInterface != null
-                ? new PlayerDataStorageManager(EpicTransport.EOSSDKComponent.PlatformInterface)
+            (EOSSDKManager.PlatformInterface != null
+                ? new PlayerDataStorageManager(EOSSDKManager.PlatformInterface)
                 : null);
 
         public PlayerDataStorageManager(PlatformInterface platformInterface = null)
         {
-            _platformHandle = platformInterface ?? EpicTransport.EOSSDKComponent.PlatformInterface;
+            _platformHandle = platformInterface ?? EOSSDKManager.PlatformInterface;
             Assert.IsNotNull(_platformHandle, "[PlayerDataStorageManager] PlatformInterface must not be null.");
 
             _storageHandle = _platformHandle.GetPlayerDataStorageInterface();
             Assert.IsNotNull(_storageHandle, "[PlayerDataStorageManager] PlayerDataStorageInterface failed to initialize.");
 
-            EpicTransport.EOSSDKComponent.OnShutdown += () => _instance = null;
+            EOSSDKManager.OnShutdown += HandleShutdown;
+        }
+
+        private void HandleShutdown()
+        {
+            EOSSDKManager.OnShutdown -= HandleShutdown;
+            _instance = null;
         }
 
         private ProductUserId GetLocalUserId()
         {
-            return EpicTransport.EOSSDKComponent.LocalUserProductId;
+            return ConnectManager.Instance?.LocalProductUserId;
         }
 
         public void SaveFile(string filename, byte[] data, Action<bool, string> onComplete = null)

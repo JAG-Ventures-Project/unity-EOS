@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 #if MIRROR
 using Mirror;
 #endif
+using EOS.Core;
 using UnityEngine;
 using Epic.OnlineServices;
 using Epic.OnlineServices.P2P;
@@ -312,7 +313,7 @@ namespace EOS.Test.Analytics
         {
             try
             {
-                var p2p = EpicTransport.EOSSDKComponent.GetP2PInterface();
+                var p2p = EOSSDKManager.PlatformInterface?.GetP2PInterface();
                 if (p2p != null)
                 {
                     // Query NAT

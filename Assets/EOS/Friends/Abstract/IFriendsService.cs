@@ -44,6 +44,8 @@ namespace EOS.Friends
         void SendJoinRequest(FriendModel friend, Action<bool, string> onComplete = null);
         void AcceptJoinRequest(string productUserId, Action<bool, string> onComplete = null);
         void DeclineJoinRequest(string productUserId, Action<bool, string> onComplete = null);
+        bool IsPlayerInSameLobbyOrGame(FriendModel friend);
+        LobbyInviteModel GetPendingInviteForFriend(FriendModel friend);
         void Shutdown();
     }
 }

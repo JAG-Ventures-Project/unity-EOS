@@ -39,11 +39,42 @@ namespace EOS.Core
 
         private static IntPtr s_libraryPointer = IntPtr.Zero;
 
+        /// <summary>
+        /// Resolves the path to the EOS native SDK library inside the Unity project.
+        /// </summary>
+        public static string ResolveEditorLibraryPath()
+        {
+            string dllFileName = Config.LibraryName.EndsWith(".dll") ? Config.LibraryName : Config.LibraryName + ".dll";
+            string[] candidateRelativePaths =
+            {
+                "EOS/EpicOnlineTransport/EOSSDK",
+                "Mirror/Transports/EpicOnlineTransport/EOSSDK",
+                "Mirror/Runtime/Transport/EpicOnlineTransport/EOSSDK"
+            };
+
+            foreach (string relativeDir in candidateRelativePaths)
+            {
+                string candidate = System.IO.Path.Combine(Application.dataPath, relativeDir, dllFileName);
+                if (System.IO.File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            string[] matches = System.IO.Directory.GetFiles(Application.dataPath, dllFileName, System.IO.SearchOption.AllDirectories);
+            if (matches.Length > 0)
+            {
+                return matches[0];
+            }
+
+            return System.IO.Path.Combine(Application.dataPath, candidateRelativePaths[0], dllFileName);
+        }
+
         private static void LoadEditorLibrary()
         {
             if (s_libraryPointer != IntPtr.Zero) return;
 
-            string libraryPath = EpicTransport.EOSSDKComponent.ResolveEditorLibraryPath();
+            string libraryPath = ResolveEditorLibraryPath();
 
             s_libraryPointer = LoadLibrary(libraryPath);
             if (s_libraryPointer == IntPtr.Zero)
@@ -80,8 +111,6 @@ namespace EOS.Core
 
             _platformInterface = CreatePlatform(apiKey);
             Assert.IsNotNull(_platformInterface, "[EOSPlatformService] CreatePlatformInterface returned null!");
-
-            EpicTransport.EOSSDKComponent.SetExternalPlatform(_platformInterface, null, () => IsInitialized && GetLocalProductUserId() != null);
 
             OnPlatformReady?.Invoke();
         }
@@ -143,27 +172,14 @@ namespace EOS.Core
             OnTick?.Invoke();
         }
 
-        public ProductUserId GetLocalProductUserId()
-        {
-            return EpicTransport.EOSSDKComponent.LocalUserProductId;
-        }
-
         public bool Shutdown()
         {
             try
             {
-                // Cancel active Steam ticket if running
-                if (EOSSDKManager.SteamService.HasActiveTicket)
-                {
-                    EOSSDKManager.SteamService.CancelTicket();
-                }
-
                 OnBeforeShutdown?.Invoke();
-                EpicTransport.EOSSDKComponent.TriggerShutdown();
 
                 if (_platformInterface != null)
                 {
-                    EpicTransport.EOSSDKComponent.SetExternalPlatform(null, null, null);
                     _platformInterface.Release();
                     _platformInterface = null;
                 }

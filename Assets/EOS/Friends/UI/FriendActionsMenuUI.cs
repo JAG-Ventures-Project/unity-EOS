@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -166,6 +166,10 @@ namespace EOS.Friends
         {
             ReleaseActiveButtons();
 
+            bool inSameSession = _friendsService != null && _friendsService.IsPlayerInSameLobbyOrGame(friend);
+            LobbyInviteModel pendingInvite = _friendsService != null ? _friendsService.GetPendingInviteForFriend(friend) : null;
+            bool hasInvite = pendingInvite != null;
+
             switch (tab)
             {
                 case FriendsTabType.Blocked:
@@ -198,40 +202,24 @@ namespace EOS.Friends
                     break;
 
                 case FriendsTabType.Platform:
-                    if (friend.Presence == FriendPresenceState.InMatch)
-                    {
-                        AddActionButton("Invite", HandleInviteClicked);
-                        AddActionButton("Join", HandleJoinClicked);
-                    }
-                    else if (friend.Presence == FriendPresenceState.InLobby)
-                    {
-                        AddActionButton("Invite", HandleInviteClicked);
-                        AddActionButton("Join", HandleJoinClicked);
-                    }
-                    else if (friend.Presence == FriendPresenceState.Online)
-                    {
-                        AddActionButton("Invite", HandleInviteClicked);
-                    }
-                    AddActionButton("Block", HandleBlockClicked);
-                    break;
-
                 case FriendsTabType.AllFriends:
                 case FriendsTabType.CrossPlay:
                 default:
-                    if (friend.Presence == FriendPresenceState.InMatch)
+                    // Hide invite and join buttons if in the same lobby or game together
+                    if (!inSameSession)
                     {
-                        AddActionButton("Invite", HandleInviteClicked);
-                        AddActionButton("Join", HandleJoinClicked);
+                        if (friend.Presence != FriendPresenceState.Offline)
+                        {
+                            AddActionButton("Invite", HandleInviteClicked);
+                        }
+
+                        // Show Join button if they invited us OR if they are in a lobby / match
+                        if (hasInvite || friend.Presence == FriendPresenceState.InMatch || friend.Presence == FriendPresenceState.InLobby)
+                        {
+                            AddActionButton("Join", HandleJoinClicked);
+                        }
                     }
-                    else if (friend.Presence == FriendPresenceState.InLobby)
-                    {
-                        AddActionButton("Invite", HandleInviteClicked);
-                        AddActionButton("Join", HandleJoinClicked);
-                    }
-                    else if (friend.Presence == FriendPresenceState.Online)
-                    {
-                        AddActionButton("Invite", HandleInviteClicked);
-                    }
+
                     AddActionButton("Block", HandleBlockClicked);
                     if (friend.Status == FriendRelationStatus.CrossPlay)
                     {
@@ -245,6 +233,7 @@ namespace EOS.Friends
         {
             FriendModel friend = _targetFriend;
             Hide();
+            if (friend == null) return;
             string id = !string.IsNullOrEmpty(friend.ProductUserId) ? friend.ProductUserId : friend.PlatformUserId;
             _friendsService?.SendFriendRequest(id, friend.DisplayName, friend.Platform, HandleActionCallback);
         }
@@ -253,6 +242,8 @@ namespace EOS.Friends
         {
             FriendModel friend = _targetFriend;
             Hide();
+            if (friend == null) return;
+            if (_friendsService != null && _friendsService.IsPlayerInSameLobbyOrGame(friend)) return;
             _friendsService?.InviteFriend(friend, HandleActionCallback);
         }
 
@@ -260,6 +251,17 @@ namespace EOS.Friends
         {
             FriendModel friend = _targetFriend;
             Hide();
+            if (friend == null) return;
+            if (_friendsService != null && _friendsService.IsPlayerInSameLobbyOrGame(friend)) return;
+
+            // Auto-join if a pending invite from this friend already exists
+            LobbyInviteModel pendingInvite = _friendsService != null ? _friendsService.GetPendingInviteForFriend(friend) : null;
+            if (pendingInvite != null && _lobbyInviteService != null)
+            {
+                _lobbyInviteService.AcceptInvite(pendingInvite.InviteId, HandleActionCallback);
+                return;
+            }
+
             _friendsService?.SendJoinRequest(friend, HandleActionCallback);
         }
 

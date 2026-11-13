@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 #if MIRROR
 using Mirror;
@@ -16,10 +16,6 @@ namespace EOS.P2P
     [DisallowMultipleComponent]
     public class EOSNetworkManager : NetworkManager, INetworkSessionService
     {
-        [Header("Pet Settings")]
-        [SerializeField] private GameObject petPrefab;
-
-        private readonly Dictionary<NetworkConnectionToClient, GameObject> _spawnedPets = new();
         private bool _isVoluntaryDisconnect;
 
         public static EOSNetworkManager Instance => singleton as EOSNetworkManager;
@@ -34,6 +30,7 @@ namespace EOS.P2P
         void INetworkSessionService.StartHost(string targetScene) => StartEosHost(targetScene);
         void INetworkSessionService.StartClient(string hostAddress) => StartEosClient(hostAddress);
         void INetworkSessionService.StopNetwork() => StopNetwork();
+        bool INetworkSessionService.IsPlayerInSession(string productUserId, string displayName) => IsPlayerInSession(productUserId, displayName);
 
         private EosTransport _eosTransport;
 
@@ -41,7 +38,6 @@ namespace EOS.P2P
 
         private void OnValidate()
         {
-            // We didn't add the pet because it's optional
             Assert.IsNotNull(playerPrefab, "[EOSNetworkManager] Player Prefab is null!");
             Assert.IsNotNull(offlineScene, "[EOSNetworkManager] Offline Scene is null!");
             Assert.IsNotNull(onlineScene, "[EOSNetworkManager] Online Scene is null!");
@@ -229,7 +225,6 @@ namespace EOS.P2P
         public override void OnStartServer()
         {
             base.OnStartServer();
-            _spawnedPets.Clear();
 
             if (string.IsNullOrEmpty(networkSceneName) || networkSceneName == offlineScene)
             {
@@ -241,7 +236,6 @@ namespace EOS.P2P
         public override void OnStopServer()
         {
             base.OnStopServer();
-            _spawnedPets.Clear();
             _isVoluntaryDisconnect = false;
         }
 
@@ -258,15 +252,6 @@ namespace EOS.P2P
             string playerName = GetPlayerDisplayName(conn);
             playerInstance.name = $"{playerPrefab.name} [{playerName}]";
             NetworkServer.AddPlayerForConnection(conn, playerInstance);
-
-            if (petPrefab != null)
-            {
-                Vector3 spawnOffset = playerInstance.transform.position + Vector3.right * 1.5f;
-                GameObject petInstance = Instantiate(petPrefab, spawnOffset, Quaternion.identity);
-                petInstance.name = $"{petPrefab.name} [{playerName}]";
-                NetworkServer.Spawn(petInstance, conn);
-                _spawnedPets[conn] = petInstance;
-            }
         }
 
         public string GetPlayerDisplayName(NetworkConnectionToClient conn)
@@ -291,8 +276,8 @@ namespace EOS.P2P
 
             if (conn is LocalConnectionToClient || conn.connectionId == 0)
             {
-                return !string.IsNullOrWhiteSpace(EOSSDKComponent.DisplayName)
-                    ? EOSSDKComponent.DisplayName
+                return !string.IsNullOrWhiteSpace(EOSSDKManager.LocalDisplayName)
+                    ? EOSSDKManager.LocalDisplayName
                     : "Host";
             }
 
@@ -300,27 +285,73 @@ namespace EOS.P2P
                 ? conn.address
                 : $"Player {conn.connectionId}";
         }
-
-
-        public override void OnServerDisconnect(NetworkConnectionToClient conn)
-        {
-            base.OnServerDisconnect(conn);
-
-            if (_spawnedPets.Remove(conn, out GameObject petInstance) && petInstance != null)
-            {
-                NetworkServer.Destroy(petInstance);
-            }
-        }
         #endregion
+
+        public bool IsPlayerInSession(string productUserId, string displayName = null)
+        {
+            if (!NetworkServer.active && !NetworkClient.isConnected) return false;
+
+            // If we are a client connected to host
+            if (!string.IsNullOrEmpty(productUserId) && string.Equals(networkAddress, productUserId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // If server active, check all connections
+            if (NetworkServer.active)
+            {
+                foreach (var conn in NetworkServer.connections.Values)
+                {
+                    if (conn == null) continue;
+                    if (!string.IsNullOrEmpty(productUserId) && string.Equals(conn.address, productUserId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                    if (!string.IsNullOrEmpty(displayName))
+                    {
+                        string name = GetPlayerDisplayName(conn);
+                        if (string.Equals(name, displayName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            // On client side in Mirror, check NetworkClient.spawned player game objects
+            if (NetworkClient.isConnected)
+            {
+                foreach (var identity in NetworkClient.spawned.Values)
+                {
+                    if (identity == null) continue;
+                    if (!string.IsNullOrEmpty(displayName) && identity.gameObject.name.IndexOf(displayName, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
 
     }
 #else
     [DisallowMultipleComponent]
-    public class EOSNetworkManager : MonoBehaviour
+    public class EOSNetworkManager : MonoBehaviour, INetworkSessionService
     {
         public static EOSNetworkManager Instance => null;
 
         public event Action OnUnexpectedClientDisconnect;
+
+        bool INetworkSessionService.IsServerActive => false;
+        bool INetworkSessionService.IsClientConnected => false;
+        bool INetworkSessionService.IsClientActive => false;
+        void INetworkSessionService.StartHost(string targetScene) => StartEosHost(targetScene);
+        void INetworkSessionService.StartClient(string hostAddress) => StartEosClient(hostAddress);
+        void INetworkSessionService.StopNetwork() => StopNetwork();
+        Func<string, string> INetworkSessionService.CustomAddressDisplayNameResolver { get; set; }
+        bool INetworkSessionService.IsPlayerInSession(string productUserId, string displayName) => false;
+        public bool IsPlayerInSession(string productUserId, string displayName = null) => false;
 
         public void StartEosHost(string targetScene = null)
         {

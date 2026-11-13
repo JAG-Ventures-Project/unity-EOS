@@ -11,21 +11,9 @@ namespace EOS.Friends
     {
         private const string FallbackDisplayName = "Player";
 
-        public bool IsLoggedIn => EpicTransport.EOSSDKComponent.LocalUserProductId != null;
+        public bool IsLoggedIn => ConnectManager.Instance != null && ConnectManager.Instance.IsLoggedIn;
 
-        public string UserCode
-        {
-            get
-            {
-                string puid = EpicTransport.EOSSDKComponent.LocalUserProductIdString;
-                if (!string.IsNullOrEmpty(puid)) return puid;
-                if (ConnectManager.Instance != null && ConnectManager.Instance.LocalProductUserId != null)
-                {
-                    return ConnectManager.Instance.LocalProductUserId.ToString();
-                }
-                return string.Empty;
-            }
-        }
+        public string UserCode => ConnectManager.Instance?.LocalProductUserIdString ?? string.Empty;
 
         public string DisplayName
         {

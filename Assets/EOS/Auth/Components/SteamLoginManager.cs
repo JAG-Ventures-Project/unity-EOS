@@ -55,7 +55,7 @@ namespace EOS.Auth
                 {
                     if (loginSuccess)
                     {
-                        EpicTransport.EOSSDKComponent.DisplayName = displayName;
+                        EOSSDKManager.LocalDisplayName = displayName;
                         AuthPreferences.LastLoginProvider = rememberMe ? LoginProvider.Steam : LoginProvider.None;
                         Debug.Log($"[SteamLoginManager] Steam connect login succeeded! DisplayName: {displayName}");
                         onComplete?.Invoke(true, null);

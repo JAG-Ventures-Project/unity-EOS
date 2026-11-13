@@ -297,9 +297,13 @@ namespace EOS.Editor
         {
             foreach (var comp in Object.FindObjectsByType<Component>(FindObjectsSortMode.None))
             {
-                if (comp != null && comp.GetType().Name == typeName)
+                if (comp == null) continue;
+                for (System.Type t = comp.GetType(); t != null; t = t.BaseType)
                 {
-                    return comp;
+                    if (t.Name == typeName)
+                    {
+                        return comp;
+                    }
                 }
             }
             return null;

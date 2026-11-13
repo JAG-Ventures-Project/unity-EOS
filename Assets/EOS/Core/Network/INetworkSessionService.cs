@@ -18,6 +18,7 @@ namespace EOS.Core
         void StopNetwork();
 
         Func<string, string> CustomAddressDisplayNameResolver { get; set; }
+        bool IsPlayerInSession(string productUserId, string displayName = null);
     }
 }
 
