@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 using EOS.Notification;
-using EOS.P2P;
+using EOS.Core;
 using System.Collections.Generic;
 using Epic.OnlineServices;
 using UnityEngine.Assertions;
@@ -9,7 +9,7 @@ namespace EOS.Friends
 {
     /// <summary>
     /// Direct P2P invite manager. Handles peer-to-peer game invitations and joins directly
-    /// via Mirror EOS P2P without requiring an EOS Lobby.
+    /// via network session service without requiring an EOS Lobby.
     /// </summary>
     public class DirectP2PInviteManager : ILobbyInviteService
     {
@@ -40,10 +40,10 @@ namespace EOS.Friends
                 return;
             }
 
-            // Ensure Mirror game host is active before dispatching invite
-            if (EOSNetworkManager.Instance != null && !Mirror.NetworkServer.active)
+            // Ensure game host is active before dispatching invite
+            if (!NetworkService.Current.IsServerActive)
             {
-                EOSNetworkManager.Instance.StartEosHost();
+                NetworkService.Current.StartHost();
             }
 
             if (FriendsManager.Instance != null)
@@ -82,7 +82,7 @@ namespace EOS.Friends
                 FriendsManager.Instance.SendDirectInviteAccepted(invite.InviterUserId.ToString());
             }
 
-            EOSNetworkManager.Instance?.StartEosClient(invite.HostAddress);
+            NetworkService.Current.StartClient(invite.HostAddress);
             onComplete?.Invoke(true, null);
         }
 

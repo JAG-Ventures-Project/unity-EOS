@@ -1,16 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
+#if MIRROR
 using Mirror;
+#endif
 using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
 using EpicTransport;
+using EOS.Core;
 
 namespace EOS.P2P
 {
+#if MIRROR
     [RequireComponent(typeof(EosTransport))]
     [DisallowMultipleComponent]
-    public class EOSNetworkManager : NetworkManager
+    public class EOSNetworkManager : NetworkManager, INetworkSessionService
     {
         [Header("Pet Settings")]
         [SerializeField] private GameObject petPrefab;
@@ -22,6 +26,14 @@ namespace EOS.P2P
 
         public event Action OnUnexpectedClientDisconnect;
         public Func<NetworkConnectionToClient, string> CustomDisplayNameResolver { get; set; }
+        public Func<string, string> CustomAddressDisplayNameResolver { get; set; }
+
+        bool INetworkSessionService.IsServerActive => NetworkServer.active;
+        bool INetworkSessionService.IsClientConnected => NetworkClient.isConnected;
+        bool INetworkSessionService.IsClientActive => NetworkClient.active;
+        void INetworkSessionService.StartHost(string targetScene) => StartEosHost(targetScene);
+        void INetworkSessionService.StartClient(string hostAddress) => StartEosClient(hostAddress);
+        void INetworkSessionService.StopNetwork() => StopNetwork();
 
         private EosTransport _eosTransport;
 
@@ -41,6 +53,16 @@ namespace EOS.P2P
         {
             base.Awake();
             TryGetComponent(out _eosTransport);
+            NetworkService.Current = this;
+        }
+
+        public override void OnDestroy()
+        {
+            base.OnDestroy();
+            if (NetworkService.Current == (INetworkSessionService)this)
+            {
+                NetworkService.Current = new NullNetworkSessionService();
+            }
         }
 
         #region Connection Handlers
@@ -258,6 +280,15 @@ namespace EOS.P2P
                 }
             }
 
+            if (CustomAddressDisplayNameResolver != null && !string.IsNullOrEmpty(conn.address))
+            {
+                string resolvedName = CustomAddressDisplayNameResolver.Invoke(conn.address);
+                if (!string.IsNullOrWhiteSpace(resolvedName))
+                {
+                    return resolvedName;
+                }
+            }
+
             if (conn is LocalConnectionToClient || conn.connectionId == 0)
             {
                 return !string.IsNullOrWhiteSpace(EOSSDKComponent.DisplayName)
@@ -283,4 +314,35 @@ namespace EOS.P2P
         #endregion
 
     }
+#else
+    [DisallowMultipleComponent]
+    public class EOSNetworkManager : MonoBehaviour
+    {
+        public static EOSNetworkManager Instance => null;
+
+        public event Action OnUnexpectedClientDisconnect;
+
+        public void StartEosHost(string targetScene = null)
+        {
+            Debug.LogWarning("[EOSNetworkManager] Mirror is not installed. StartEosHost skipped.");
+        }
+
+        public void StartEosClient(string hostProductUserId)
+        {
+            Debug.LogWarning("[EOSNetworkManager] Mirror is not installed. StartEosClient skipped.");
+        }
+
+        public void ConnectToHost(string hostProductUserId) => StartEosClient(hostProductUserId);
+
+        public void StopNetwork()
+        {
+        }
+
+        public bool StartMatch(string sceneName)
+        {
+            Debug.LogWarning("[EOSNetworkManager] Mirror is not installed. StartMatch skipped.");
+            return false;
+        }
+    }
+#endif
 }

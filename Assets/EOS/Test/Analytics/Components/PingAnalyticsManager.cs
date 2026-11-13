@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if MIRROR
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Mirror;
@@ -249,3 +250,40 @@ namespace EOS.Test.Analytics
         #endregion
     }
 }
+#else
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace EOS.Test.Analytics
+{
+    [DisallowMultipleComponent]
+    public class PingAnalyticsManager : MonoBehaviour
+    {
+        public static PingAnalyticsManager Instance { get; private set; }
+        public float UpdateInterval => 2.0f;
+        public event Action<IReadOnlyList<PlayerPingData>> OnPingsUpdated;
+        public IReadOnlyList<PlayerPingData> LatestPings => Array.Empty<PlayerPingData>();
+
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else if (Instance != this)
+            {
+                Destroy(gameObject);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+    }
+}
+#endif

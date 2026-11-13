@@ -1,14 +1,12 @@
-﻿using UnityEditor;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using EOS.Core;
 using EOS.Auth;
-using EOS.P2P;
 using EOS.Lobby;
 using EOS.Friends;
 using EOS.Notification;
-using EOS.Test.Analytics;
 
 namespace EOS.Editor
 {
@@ -21,7 +19,7 @@ namespace EOS.Editor
         public const string CorePrefabPath = "Assets/EOS/Core/Prefabs/EOSManager.prefab";
         public const string AuthManagerPrefabPath = "Assets/EOS/Auth/Prefabs/LoginManager.prefab";
         public const string AuthMenuPrefabPath = "Assets/EOS/Auth/Prefabs/Login Menu.prefab";
-        public const string P2PPrefabPath = "Assets/EOS/P2P/Prefabs/NetworkManager.prefab";
+        public const string P2PPrefabPath = "Assets/EOS/Mirror/P2P/Prefabs/NetworkManager.prefab";
         public const string LobbyManagerPrefabPath = "Assets/EOS/Lobby/Prefabs/LobbyManager.prefab";
         public const string LobbyCanvasPrefabPath = "Assets/EOS/Lobby/Prefabs/Canvas.prefab";
         public const string FriendsCanvasPrefabPath = "Assets/EOS/Friends/Prefabs/Canvas.prefab";
@@ -33,11 +31,11 @@ namespace EOS.Editor
 
         public static bool HasCoreInScene => Object.FindFirstObjectByType<EOSSDKManager>() != null;
         public static bool HasAuthInScene => Object.FindFirstObjectByType<EOSLoginManager>() != null;
-        public static bool HasP2PInScene => Object.FindFirstObjectByType<EOSNetworkManager>() != null;
+        public static bool HasP2PInScene => FindComponentByName("EOSNetworkManager") != null;
         public static bool HasLobbyInScene => Object.FindFirstObjectByType<LobbyUIManager>() != null;
         public static bool HasFriendsInScene => Object.FindFirstObjectByType<FriendsOverlayManager>() != null;
         public static bool HasNotificationInScene => Object.FindFirstObjectByType<NotificationManager>() != null;
-        public static bool HasAnalyticsInScene => Object.FindFirstObjectByType<PingAnalyticsManager>() != null || Object.FindFirstObjectByType<AnalyticsManager>() != null;
+        public static bool HasAnalyticsInScene => FindComponentByName("PingAnalyticsManager") != null || FindComponentByName("AnalyticsManager") != null;
 
         #endregion
 
@@ -99,7 +97,11 @@ namespace EOS.Editor
             {
                 if (!EditorUtility.DisplayDialog("System Already Present", "EOSNetworkManager is already present in this scene. Do you want to add another instance anyway?", "Add Duplicate", "Cancel"))
                 {
-                    Selection.activeGameObject = Object.FindFirstObjectByType<EOSNetworkManager>().gameObject;
+                    Component existingComp = FindComponentByName("EOSNetworkManager");
+                    if (existingComp != null)
+                    {
+                        Selection.activeGameObject = existingComp.gameObject;
+                    }
                     return null;
                 }
             }
@@ -291,6 +293,18 @@ namespace EOS.Editor
             }
         }
 
+        public static Component FindComponentByName(string typeName)
+        {
+            foreach (var comp in Object.FindObjectsByType<Component>(FindObjectsSortMode.None))
+            {
+                if (comp != null && comp.GetType().Name == typeName)
+                {
+                    return comp;
+                }
+            }
+            return null;
+        }
+
         #endregion
     }
 
@@ -341,7 +355,7 @@ namespace EOS.Editor
                 prefabs: "NetworkManager.prefab",
                 isInScene: EOSSystemSetup.HasP2PInScene,
                 onAdd: () => EOSSystemSetup.AddP2PSystem(),
-                onSelect: () => SelectObjectInScene<EOSNetworkManager>()
+                onSelect: () => SelectObjectByName("EOSNetworkManager")
             );
 
             DrawSystemCard(
@@ -377,7 +391,7 @@ namespace EOS.Editor
                 prefabs: "AnalyticsManager.prefab, Canvas.prefab (Analytics)",
                 isInScene: EOSSystemSetup.HasAnalyticsInScene,
                 onAdd: () => EOSSystemSetup.AddAnalyticsSystem(),
-                onSelect: () => SelectObjectInScene<AnalyticsManager>()
+                onSelect: () => SelectObjectByName("AnalyticsManager")
             );
 
             EditorGUILayout.EndScrollView();
@@ -443,6 +457,16 @@ namespace EOS.Editor
         private void SelectObjectInScene<T>() where T : Component
         {
             T comp = Object.FindFirstObjectByType<T>();
+            if (comp != null)
+            {
+                Selection.activeGameObject = comp.gameObject;
+                EditorGUIUtility.PingObject(comp.gameObject);
+            }
+        }
+
+        private static void SelectObjectByName(string typeName)
+        {
+            Component comp = EOSSystemSetup.FindComponentByName(typeName);
             if (comp != null)
             {
                 Selection.activeGameObject = comp.gameObject;

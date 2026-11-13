@@ -1,5 +1,5 @@
 using EOS.Notification;
-using EOS.P2P;
+using EOS.Core;
 using EOS.Friends;
 using EOS.Auth;
 using System.Collections.Generic;
@@ -101,12 +101,9 @@ namespace EOS.Lobby
                 FriendsManager.Instance.OnFriendsListUpdated += HandleFriendsListUpdated;
             }
 
-            if (EOSNetworkManager.Instance != null)
-            {
-                EOSNetworkManager.Instance.CustomDisplayNameResolver = ResolveLobbyDisplayName;
-                EOSNetworkManager.Instance.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
-                EOSNetworkManager.Instance.OnUnexpectedClientDisconnect += HandleUnexpectedClientDisconnect;
-            }
+            NetworkService.Current.CustomAddressDisplayNameResolver = ResolveLobbyDisplayName;
+            NetworkService.Current.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
+            NetworkService.Current.OnUnexpectedClientDisconnect += HandleUnexpectedClientDisconnect;
 
             if (_lobby != null && _lobby.IsInLobby)
             {
@@ -147,7 +144,7 @@ namespace EOS.Lobby
                 FriendsManager.Instance.OnFriendsListUpdated -= HandleFriendsListUpdated;
             }
 
-            EOSNetworkManager.Instance.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
+            NetworkService.Current.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
 
             if (_lobby != null)
             {
@@ -243,8 +240,7 @@ namespace EOS.Lobby
 
             FriendsOverlayManager.Instance?.PersistForGameScene();
 
-            // Start Mirror Host first so transport is listening for clients
-            EOSNetworkManager.Instance?.StartEosHost(nextSceneName);
+            NetworkService.Current.StartHost(nextSceneName);
 
             // Signal other players via EOS Lobby that match has started
             _lobby.StartGame(HandleStartGameCallback);
@@ -254,7 +250,7 @@ namespace EOS.Lobby
         {
             if (!success)
             {
-                EOSNetworkManager.Instance?.StopNetwork();
+                NetworkService.Current.StopNetwork();
                 UpdateActionButtonsDisplay();
                 NotificationManager.Show($"Failed to start match: {error}", NotificationType.Error);
             }
@@ -267,7 +263,7 @@ namespace EOS.Lobby
             FriendsOverlayManager.Instance?.PersistForGameScene();
 
             NotificationManager.Show("Match is starting...", NotificationType.Normal);
-            EOSNetworkManager.Instance?.StartEosClient(hostAddress);
+            NetworkService.Current.StartClient(hostAddress);
         }
 
         private void HandleOnLobbyCreated(string shortCode)
@@ -322,7 +318,7 @@ namespace EOS.Lobby
             SetMenuButtonsInteractable(true);
             leaveLobbyButton.interactable = true;
             joinCodeInputField.text = string.Empty;
-            EOSNetworkManager.Instance?.StopNetwork();
+            NetworkService.Current.StopNetwork();
         }
 
         private void HandleOnPlayerJoined(ProductUserId userId)
@@ -526,16 +522,9 @@ namespace EOS.Lobby
             return playerCardImages[UnityEngine.Random.Range(0, playerCardImages.Count)];
         }
 
-        private static string ResolveLobbyDisplayName(Mirror.NetworkConnectionToClient conn)
+        private static string ResolveLobbyDisplayName(string address)
         {
-            if (conn is Mirror.LocalConnectionToClient || conn.connectionId == 0)
-            {
-                return !string.IsNullOrWhiteSpace(EpicTransport.EOSSDKComponent.DisplayName)
-                    ? EpicTransport.EOSSDKComponent.DisplayName
-                    : "Host";
-            }
-
-            return LobbyManager.Instance?.ResolveDisplayName(conn.address);
+            return LobbyManager.Instance?.ResolveDisplayName(address);
         }
 
         #endregion

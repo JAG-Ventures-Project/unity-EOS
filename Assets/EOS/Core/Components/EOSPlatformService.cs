@@ -43,13 +43,7 @@ namespace EOS.Core
         {
             if (s_libraryPointer != IntPtr.Zero) return;
 
-            string dllFileName = Config.LibraryName.EndsWith(".dll") ? Config.LibraryName : Config.LibraryName + ".dll";
-            string libraryPath = System.IO.Path.Combine(Application.dataPath, "Mirror/Transports/EpicOnlineTransport/EOSSDK", dllFileName);
-
-            if (!System.IO.File.Exists(libraryPath))
-            {
-                libraryPath = System.IO.Path.Combine(Application.dataPath, "Mirror/Runtime/Transport/EpicOnlineTransport/EOSSDK", dllFileName);
-            }
+            string libraryPath = EpicTransport.EOSSDKComponent.ResolveEditorLibraryPath();
 
             s_libraryPointer = LoadLibrary(libraryPath);
             if (s_libraryPointer == IntPtr.Zero)

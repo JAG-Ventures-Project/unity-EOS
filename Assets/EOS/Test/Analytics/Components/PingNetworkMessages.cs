@@ -1,5 +1,7 @@
-﻿using System;
+using System;
+#if MIRROR
 using Mirror;
+#endif
 
 namespace EOS.Test.Analytics
 {
@@ -23,7 +25,10 @@ namespace EOS.Test.Analytics
     /// Network message broadcast by the host/server to all clients containing
     /// the current ping of all connected players (excluding the host).
     /// </summary>
-    public struct PlayersPingListMessage : NetworkMessage
+    public struct PlayersPingListMessage
+#if MIRROR
+        : NetworkMessage
+#endif
     {
         public PlayerPingData[] players;
     }
@@ -31,7 +36,10 @@ namespace EOS.Test.Analytics
     /// <summary>
     /// Network message sent by a client to register their display name with the server.
     /// </summary>
-    public struct RegisterPlayerNameMessage : NetworkMessage
+    public struct RegisterPlayerNameMessage
+#if MIRROR
+        : NetworkMessage
+#endif
     {
         public string playerName;
     }

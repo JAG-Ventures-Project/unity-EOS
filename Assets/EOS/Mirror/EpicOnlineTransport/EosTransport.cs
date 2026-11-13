@@ -2,13 +2,15 @@ using System;
 using UnityEngine;
 using Epic.OnlineServices.P2P;
 using Epic.OnlineServices;
+#if MIRROR
 using Mirror;
+#endif
 using Epic.OnlineServices.Metrics;
 using System.Collections;
 
 namespace EpicTransport
 {
-
+#if MIRROR
     /// <summary>
     /// EOS Transport following the Mirror transport standard
     /// </summary>
@@ -444,4 +446,12 @@ namespace EpicTransport
             }
         }
     }
+#else
+    /// <summary>
+    /// Stub fallback when Mirror is not installed.
+    /// </summary>
+    public class EosTransport : MonoBehaviour
+    {
+    }
+#endif
 }

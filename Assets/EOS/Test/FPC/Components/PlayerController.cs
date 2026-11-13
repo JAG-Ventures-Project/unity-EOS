@@ -1,4 +1,5 @@
-﻿using Mirror;
+﻿#if MIRROR
+using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Assertions;
@@ -195,3 +196,22 @@ namespace EOS.Test.FPC
 
     }
 }
+#else
+using System;
+using UnityEngine;
+
+namespace EOS.Test.FPC
+{
+    public class PlayerController : MonoBehaviour, IPlayerController
+    {
+        public static PlayerController LocalPlayer { get; private set; }
+        public static event Action<PlayerController> OnLocalPlayerSpawned;
+
+        public Vector3 NetVelocity => Vector3.zero;
+        public Vector3 NetCoordinates => Vector3.zero;
+        public Color BodyColor => Color.white;
+
+        public void SetMovementEnable(bool isEnable = true) { }
+    }
+}
+#endif

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+#if MIRROR
 using Mirror;
+#endif
 using UnityEngine;
 using Epic.OnlineServices;
 using Epic.OnlineServices.P2P;
@@ -23,6 +25,7 @@ namespace EOS.Test.Analytics
         public int serverSendRate;
     }
 
+#if MIRROR
     /// <summary>
     /// AI Implemnation
     /// Measures in-depth network and system metrics including:
@@ -366,4 +369,33 @@ namespace EOS.Test.Analytics
 
         #endregion
     }
+#else
+    [DisallowMultipleComponent]
+    public class NetworkDiagnosticsManager : MonoBehaviour
+    {
+        public static NetworkDiagnosticsManager Instance { get; private set; }
+        public event Action<NetworkPerformanceStats> OnStatsUpdated;
+        public NetworkPerformanceStats CurrentStats { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else if (Instance != this)
+            {
+                Destroy(gameObject);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+    }
+#endif
 }

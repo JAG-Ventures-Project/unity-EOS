@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 using EOS.Notification;
-using EOS.P2P;
+using EOS.Core;
 using EOS.Friends;
 using System.Collections.Generic;
 using Epic.OnlineServices;
@@ -92,7 +92,7 @@ namespace EOS.Lobby
             }
 
             // Lobby successfully created; dispatch invites to all queued friends
-            if (Mirror.NetworkServer.active)
+            if (NetworkService.Current.IsServerActive)
             {
                 _lobby.AllowJoinInProgress = true;
                 _lobby.StartGame();
@@ -178,13 +178,13 @@ namespace EOS.Lobby
                 OnInviteRemoved?.Invoke(inviteId);
 
                 // if joining an in-progress game match, auto-connect client directly to host if not already connecting
-                if (_lobby.HasGameStarted && !Mirror.NetworkClient.active && !Mirror.NetworkClient.isConnected && !string.IsNullOrEmpty(error))
+                if (_lobby.HasGameStarted && !NetworkService.Current.IsClientActive && !NetworkService.Current.IsClientConnected && !string.IsNullOrEmpty(error))
                 {
                     if (_lobby.AllowJoinInProgress)
                     {
                         FriendsOverlayManager.Instance?.PersistForGameScene();
                     }
-                    EOSNetworkManager.Instance?.StartEosClient(error);
+                    NetworkService.Current.StartClient(error);
                 }
             }
 

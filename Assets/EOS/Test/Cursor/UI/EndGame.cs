@@ -1,10 +1,9 @@
-﻿using EOS.P2P;
+using EOS.Core;
 using EOS.Friends;
 using EOS.Lobby;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Assertions;
-using Mirror;
 
 namespace EOS.Test.Cursor
 {
@@ -38,14 +37,14 @@ namespace EOS.Test.Cursor
 
             if (!FriendsManager.UseLobbySystem)
             {
-                EOSNetworkManager.Instance?.StopNetwork();
+                NetworkService.Current.StopNetwork();
                 return;
             }
 
             var lobby = _lobby ?? LobbyManager.Instance;
 
             // Host/Server check: host resets the match state in EOS lobby and brings all players back
-            if (NetworkServer.active)
+            if (NetworkService.Current.IsServerActive)
             {
                 if (lobby != null)
                 {
@@ -53,19 +52,19 @@ namespace EOS.Test.Cursor
                 }
                 else
                 {
-                    EOSNetworkManager.Instance?.StopNetwork();
+                    NetworkService.Current.StopNetwork();
                 }
             }
             else
             {
-                // Client: leave the old EOS lobby and stop Mirror client
+                // Client: leave the old EOS lobby and stop client
                 if (lobby != null && lobby.IsInLobby)
                 {
                     lobby.LeaveLobby(HandleClientLeaveLobbyCallback);
                 }
                 else
                 {
-                    EOSNetworkManager.Instance?.StopNetwork();
+                    NetworkService.Current.StopNetwork();
                 }
             }
         }
@@ -77,13 +76,13 @@ namespace EOS.Test.Cursor
                 Debug.LogWarning($"[EndGame] Host reset match callback note: {error}");
             }
 
-            // Stop host in Mirror: disconnects all clients and automatically loads offlineScene (Lobby.unity)
-            EOSNetworkManager.Instance?.StopNetwork();
+            // Stop host in network session: disconnects all clients and automatically loads offlineScene
+            NetworkService.Current.StopNetwork();
         }
 
         private void HandleClientLeaveLobbyCallback(bool success)
         {
-            EOSNetworkManager.Instance?.StopNetwork();
+            NetworkService.Current.StopNetwork();
         }
     }
 }

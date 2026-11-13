@@ -18,6 +18,7 @@ namespace EOS.Core
         public static EOSSDKManager Instance { get; private set; }
 
         public static ISteamService SteamService { get; set; } = new NullSteamService();
+        public static INetworkSessionService NetworkSession => NetworkService.Current;
         public static string LocalDisplayName
         {
             get => EpicTransport.EOSSDKComponent.DisplayName;

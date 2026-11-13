@@ -212,6 +212,34 @@ namespace EpicTransport {
         private IntPtr libraryPointer;
 #endif
 
+#if UNITY_EDITOR
+        /// <summary>
+        /// Resolves the path to the EOS native SDK library inside the Unity project.
+        /// </summary>
+        public static string ResolveEditorLibraryPath() {
+            string dllFileName = Config.LibraryName.EndsWith(".dll") ? Config.LibraryName : Config.LibraryName + ".dll";
+            string[] candidateRelativePaths = {
+                "EOS/EpicOnlineTransport/EOSSDK",
+                "Mirror/Transports/EpicOnlineTransport/EOSSDK",
+                "Mirror/Runtime/Transport/EpicOnlineTransport/EOSSDK"
+            };
+
+            foreach (string relativeDir in candidateRelativePaths) {
+                string candidate = System.IO.Path.Combine(Application.dataPath, relativeDir, dllFileName);
+                if (System.IO.File.Exists(candidate)) {
+                    return candidate;
+                }
+            }
+
+            string[] matches = System.IO.Directory.GetFiles(Application.dataPath, dllFileName, System.IO.SearchOption.AllDirectories);
+            if (matches.Length > 0) {
+                return matches[0];
+            }
+
+            return System.IO.Path.Combine(Application.dataPath, candidateRelativePaths[0], dllFileName);
+        }
+#endif
+
         private void Awake() {
             // Initialize Java version of the SDK with a reference to the VM with JNI
             // See https://eoshelp.epicgames.com/s/question/0D54z00006ufJBNCA2/cant-get-createdeviceid-to-work-in-unity-android-c-sdk?language=en_US
@@ -232,12 +260,7 @@ namespace EpicTransport {
             instance = this;
 
 #if UNITY_EDITOR
-            string dllFileName = Config.LibraryName.EndsWith(".dll") ? Config.LibraryName : Config.LibraryName + ".dll";
-            string libraryPath = System.IO.Path.Combine(Application.dataPath, "Mirror/Transports/EpicOnlineTransport/EOSSDK", dllFileName);
-
-            if (!System.IO.File.Exists(libraryPath)) {
-                libraryPath = System.IO.Path.Combine(Application.dataPath, "Mirror/Runtime/Transport/EpicOnlineTransport/EOSSDK", dllFileName);
-            }
+            string libraryPath = ResolveEditorLibraryPath();
 
             libraryPointer = LoadLibrary(libraryPath);
             if (libraryPointer == IntPtr.Zero) {

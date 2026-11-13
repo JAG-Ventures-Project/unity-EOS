@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if MIRROR
+using System;
 using Mirror;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -205,3 +206,25 @@ namespace EOS.Test.Pet
         }
     }
 }
+#else
+using System;
+using UnityEngine;
+
+namespace EOS.Test.Pet
+{
+    [DisallowMultipleComponent]
+    public class PetController : MonoBehaviour
+    {
+        public static PetController LocalPet { get; private set; }
+        public static event Action<PetController> OnLocalPetSpawned;
+
+        public Vector3 NetVelocity => Vector3.zero;
+        public Vector3 NetCoordinates => Vector3.zero;
+        public uint NetLevel => 1;
+
+        public void CmdRequestColorChange(Vector3 requestedRGB) { }
+        public void CmdSetPetActive(bool active) { }
+        public void SetColor(Color color) { }
+    }
+}
+#endif

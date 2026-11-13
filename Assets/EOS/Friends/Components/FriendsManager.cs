@@ -1,6 +1,5 @@
 using System;
 using EOS.Notification;
-using EOS.P2P;
 using EOS.Lobby;
 using EOS.Auth;
 using EOS.Core;
@@ -507,7 +506,7 @@ namespace EOS.Friends
 
         private FriendPresenceState GetLocalPresenceState()
         {
-            if (Mirror.NetworkServer.active || (Mirror.NetworkClient.active && Mirror.NetworkClient.isConnected))
+            if (NetworkService.Current.IsServerActive || NetworkService.Current.IsClientConnected)
             {
                 return FriendPresenceState.InMatch;
             }
@@ -1390,10 +1389,10 @@ namespace EOS.Friends
                 return;
             }
 
-            // Automatically start the Mirror game host if not already active
-            if (EOSNetworkManager.Instance != null && !Mirror.NetworkServer.active)
+            // Automatically start the game host if not already active
+            if (!NetworkService.Current.IsServerActive)
             {
-                EOSNetworkManager.Instance.StartEosHost();
+                NetworkService.Current.StartHost();
             }
 
             string myPuid = LocalProductUserIdString;
@@ -1606,9 +1605,9 @@ namespace EOS.Friends
 
             if (!UseLobbySystem)
             {
-                if (EOSNetworkManager.Instance != null && !Mirror.NetworkServer.active)
+                if (!NetworkService.Current.IsServerActive)
                 {
-                    EOSNetworkManager.Instance.StartEosHost();
+                    NetworkService.Current.StartHost();
                 }
 
                 string myPuid = LocalProductUserIdString;
@@ -1823,7 +1822,7 @@ namespace EOS.Friends
                         if (!string.IsNullOrEmpty(signal.hostAddress))
                         {
                             FriendsOverlayManager.Instance?.PersistForGameScene();
-                            EOSNetworkManager.Instance?.StartEosClient(signal.hostAddress);
+                            NetworkService.Current.StartClient(signal.hostAddress);
                         }
                     }
                     else if (!string.IsNullOrEmpty(signal.joinCode) && ActiveLobby != null)
@@ -1841,7 +1840,7 @@ namespace EOS.Friends
                     else if (!string.IsNullOrEmpty(signal.hostAddress))
                     {
                         FriendsOverlayManager.Instance?.PersistForGameScene();
-                        EOSNetworkManager.Instance?.StartEosClient(signal.hostAddress);
+                        NetworkService.Current.StartClient(signal.hostAddress);
                     }
                     break;
 
