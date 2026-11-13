@@ -1,4 +1,5 @@
 using System;
+using EOS.Core;
 using UnityEngine;
 
 namespace EOS.Auth
