@@ -40,11 +40,28 @@ namespace EOS.Core
         private static IntPtr s_libraryPointer = IntPtr.Zero;
 
         /// <summary>
-        /// Resolves the path to the EOS native SDK library inside the Unity project.
+        /// Resolves the path to the EOS native SDK library inside the Unity project or UPM package.
         /// </summary>
         public static string ResolveEditorLibraryPath()
         {
             string dllFileName = Config.LibraryName.EndsWith(".dll") ? Config.LibraryName : Config.LibraryName + ".dll";
+
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(EOSPlatformService).Assembly);
+            if (packageInfo != null && !string.IsNullOrEmpty(packageInfo.resolvedPath))
+            {
+                string packageCandidate = System.IO.Path.Combine(packageInfo.resolvedPath, "EpicOnlineTransport", "EOSSDK", dllFileName);
+                if (System.IO.File.Exists(packageCandidate))
+                {
+                    return packageCandidate;
+                }
+
+                string[] packageMatches = System.IO.Directory.GetFiles(packageInfo.resolvedPath, dllFileName, System.IO.SearchOption.AllDirectories);
+                if (packageMatches.Length > 0)
+                {
+                    return packageMatches[0];
+                }
+            }
+
             string[] candidateRelativePaths =
             {
                 "EOS/EpicOnlineTransport/EOSSDK",

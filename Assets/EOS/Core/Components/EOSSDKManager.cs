@@ -38,7 +38,15 @@ namespace EOS.Core
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(eosApiKey, "[EOSSDKManager] EosApiKey is null! Please assign an EosApiKey ScriptableObject in the inspector.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (eosApiKey == null)
+            {
+                Debug.LogWarning("[EOSSDKManager] EosApiKey is null! Please assign an EosApiKey ScriptableObject in the inspector.", this);
+            }
         }
 #endif
 
