@@ -7,7 +7,7 @@ EditorBuildSettings:
   m_Scenes:
   - enabled: 1
     path: Assets/EOS/Scenes/LoginScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+    guid: 86c75fbf062a48089a91b0c722784660
   - enabled: 1
     path: Assets/EOS/Scenes/Lobby.unity
     guid: a153af187e3022d40b83dd4ca0d2844a

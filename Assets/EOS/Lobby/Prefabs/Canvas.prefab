@@ -296,7 +296,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EOS.LogoutManager
   logoutButton: {fileID: 7367646558818319873}
   nextSceneName: LoginScene
-  nextScene: {fileID: 102900000, guid: 99c9720ab356a0642a771bea13969a05, type: 3}
+  nextScene: {fileID: 102900000, guid: 86c75fbf062a48089a91b0c722784660, type: 3}
 --- !u!1 &499538594926395618
 GameObject:
   m_ObjectHideFlags: 0
