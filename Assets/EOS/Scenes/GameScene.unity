@@ -2145,7 +2145,7 @@ PrefabInstance:
     - target: {fileID: 3835646571162243032, guid: 729d338a3d7917f4f98b832f1ab0b618, type: 3}
       propertyPath: pingAnalyticsUI
       value: 
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 6736225253363722845}
     - target: {fileID: 3835646571162243032, guid: 729d338a3d7917f4f98b832f1ab0b618, type: 3}
       propertyPath: analyticsMenuPanel
       value: 
@@ -2153,7 +2153,7 @@ PrefabInstance:
     - target: {fileID: 3835646571162243032, guid: 729d338a3d7917f4f98b832f1ab0b618, type: 3}
       propertyPath: networkDiagnosticsUI
       value: 
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 6736225253363722844}
     - target: {fileID: 5143459647594549120, guid: 729d338a3d7917f4f98b832f1ab0b618, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -2212,6 +2212,28 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 5143459647594549120, guid: 729d338a3d7917f4f98b832f1ab0b618, type: 3}
   m_PrefabInstance: {fileID: 6736225253363722842}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &6736225253363722844 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2885213966420407758, guid: 729d338a3d7917f4f98b832f1ab0b618, type: 3}
+  m_PrefabInstance: {fileID: 6736225253363722842}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86b2b8eebb51a30418da838b7d70edee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EOS.UI.Analytics.NetworkDiagnosticsUI
+--- !u!114 &6736225253363722845 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 7424933816294708737, guid: 729d338a3d7917f4f98b832f1ab0b618, type: 3}
+  m_PrefabInstance: {fileID: 6736225253363722842}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ec8aae515e293e842a5b5312a08fa07e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EOS.UI.Analytics.PingAnalyticsUI
 --- !u!1001 &7595227324268910878
 PrefabInstance:
   m_ObjectHideFlags: 0

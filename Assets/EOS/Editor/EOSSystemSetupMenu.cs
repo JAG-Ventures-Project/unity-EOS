@@ -256,12 +256,38 @@ namespace EOS.Editor
 
         #region Helpers
 
+        private static string s_packageRoot;
+
+        private static string PackageRoot
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(s_packageRoot))
+                {
+                    var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(EOSSystemSetup).Assembly);
+                    s_packageRoot = packageInfo != null ? packageInfo.assetPath : "Assets/EOS";
+                }
+                return s_packageRoot;
+            }
+        }
+
+        private static string ResolveAssetPath(string assetPath)
+        {
+            const string LocalPrefix = "Assets/EOS";
+            if (!string.IsNullOrEmpty(assetPath) && assetPath.StartsWith(LocalPrefix))
+            {
+                return PackageRoot + assetPath.Substring(LocalPrefix.Length);
+            }
+            return assetPath;
+        }
+
         public static GameObject InstantiatePrefabToScene(string assetPath, string undoName)
         {
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            string resolvedPath = ResolveAssetPath(assetPath);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(resolvedPath);
             if (prefab == null)
             {
-                Debug.LogError($"[EOS Setup] Could not find prefab at: {assetPath}");
+                Debug.LogError($"[EOS Setup] Could not find prefab at: {resolvedPath}");
                 return null;
             }
 

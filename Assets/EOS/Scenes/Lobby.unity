@@ -962,6 +962,18 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8468684712091076212, guid: 821c9f053d9bf594ca137a5cda115060, type: 3}
+      propertyPath: tabInactiveColor.b
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8468684712091076212, guid: 821c9f053d9bf594ca137a5cda115060, type: 3}
+      propertyPath: tabInactiveColor.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8468684712091076212, guid: 821c9f053d9bf594ca137a5cda115060, type: 3}
+      propertyPath: tabInactiveColor.r
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8523976251241711023, guid: 821c9f053d9bf594ca137a5cda115060, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -3.2000122
