@@ -18,14 +18,14 @@ namespace EOS.Editor
     {
         public const string CorePrefabPath = "Assets/EOS/Core/Prefabs/EOSManager.prefab";
         public const string AuthManagerPrefabPath = "Assets/EOS/Auth/Prefabs/LoginManager.prefab";
-        public const string AuthMenuPrefabPath = "Assets/EOS/Auth/Prefabs/Login Menu.prefab";
+        public const string AuthMenuPrefabPath = "Assets/EOS/Auth/Prefabs/Login Menu Canvas.prefab";
         public const string P2PPrefabPath = "Assets/EOS/Mirror/P2P/Prefabs/NetworkManager.prefab";
         public const string LobbyManagerPrefabPath = "Assets/EOS/Lobby/Prefabs/LobbyManager.prefab";
-        public const string LobbyCanvasPrefabPath = "Assets/EOS/Lobby/Prefabs/Canvas.prefab";
-        public const string FriendsCanvasPrefabPath = "Assets/EOS/Friends/Prefabs/Canvas.prefab";
+        public const string LobbyCanvasPrefabPath = "Assets/EOS/Lobby/Prefabs/Lobby Menu Canvas.prefab";
+        public const string FriendsCanvasPrefabPath = "Assets/EOS/Friends/Prefabs/Friends Overlay Canvas.prefab";
         public const string NotificationManagerPrefabPath = "Assets/EOS/Notification/Prefabs/NotificationManager.prefab";
         public const string AnalyticsManagerPrefabPath = "Assets/EOS/Test/Analytics/Prefabs/AnalyticsManager.prefab";
-        public const string AnalyticsCanvasPrefabPath = "Assets/EOS/Test/Analytics/Prefabs/Canvas.prefab";
+        public const string AnalyticsCanvasPrefabPath = "Assets/EOS/Test/Analytics/Prefabs/Analytics Canvas.prefab";
 
         #region Status Checkers
 
@@ -373,7 +373,7 @@ namespace EOS.Editor
             DrawSystemCard(
                 title: "2. Auth System",
                 description: "Player authentication, persistent credentials, and login UI menu.",
-                prefabs: "Login Menu.prefab, LoginManager.prefab",
+                prefabs: "Login Menu Canvas.prefab, LoginManager.prefab",
                 isInScene: EOSSystemSetup.HasAuthInScene,
                 onAdd: () => EOSSystemSetup.AddAuthSystem(),
                 onSelect: () => SelectObjectInScene<EOSLoginManager>()
@@ -391,7 +391,7 @@ namespace EOS.Editor
             DrawSystemCard(
                 title: "4. Lobby System",
                 description: "Room matchmaking, 5-character join codes, invite handling, and lobby UI.",
-                prefabs: "Canvas.prefab (Lobby), LobbyManager.prefab",
+                prefabs: "Lobby Menu Canvas.prefab, LobbyManager.prefab",
                 isInScene: EOSSystemSetup.HasLobbyInScene,
                 onAdd: () => EOSSystemSetup.AddLobbySystem(),
                 onSelect: () => SelectObjectInScene<LobbyUIManager>()
@@ -400,7 +400,7 @@ namespace EOS.Editor
             DrawSystemCard(
                 title: "5. Friends System",
                 description: "Cross-platform cloud friends, native platform sync, invites, and overlay UI.",
-                prefabs: "Canvas.prefab (Friends Overlay)",
+                prefabs: "Friends Overlay Canvas.prefab",
                 isInScene: EOSSystemSetup.HasFriendsInScene,
                 onAdd: () => EOSSystemSetup.AddFriendsSystem(),
                 onSelect: () => SelectObjectInScene<FriendsOverlayManager>()
@@ -418,7 +418,7 @@ namespace EOS.Editor
             DrawSystemCard(
                 title: "7. Analytics System",
                 description: "Real-time network ping telemetry, packet diagnostics, and analytics overlay.",
-                prefabs: "AnalyticsManager.prefab, Canvas.prefab (Analytics)",
+                prefabs: "AnalyticsManager.prefab, Analytics Canvas.prefab",
                 isInScene: EOSSystemSetup.HasAnalyticsInScene,
                 onAdd: () => EOSSystemSetup.AddAnalyticsSystem(),
                 onSelect: () => SelectObjectByName("AnalyticsManager")
