@@ -40,6 +40,7 @@ namespace EOS.Lobby
             AddPublicLobbyAttribute(modHandle, LobbyManager.HostAddressKey, _state.LocalProductUserId.ToString());
             AddPublicLobbyAttribute(modHandle, LobbyManager.MatchStartedKey, "false");
             AddPublicLobbyAttribute(modHandle, LobbyManager.AllowJoinInProgressKey, _state.AllowJoinInProgress ? "true" : "false");
+            AddPublicLobbyAttribute(modHandle, LobbyManager.AllowedRejoinersKey, string.Empty);
 
             string hostDisplayName = LobbySessionState.ResolveLocalDisplayName("Host");
             AddPublicLobbyAttribute(modHandle, LobbyManager.HostNameKey, hostDisplayName);
@@ -78,15 +79,15 @@ namespace EOS.Lobby
             if (!TryCreateModification(_state.CurrentLobbyId, out LobbyModification modHandle, onComplete))
                 return;
 
-            // If join-in-progress is NOT allowed, lock the lobby permissions to Inviteonly so it is no longer publicly advertised or searchable
-            if (!_state.AllowJoinInProgress)
+            // Keep lobby searchable so disconnected match participants can auto-rejoin even when AllowJoinInProgress is false;
+            // unauthorized players are blocked by JoinFromDetailsHandle and EosTransport.ConnectionFilter.
+            modHandle.SetPermissionLevel(new LobbyModificationSetPermissionLevelOptions
             {
-                modHandle.SetPermissionLevel(new LobbyModificationSetPermissionLevelOptions
-                {
-                    PermissionLevel = LobbyPermissionLevel.Inviteonly
-                });
-            }
+                PermissionLevel = LobbyPermissionLevel.Publicadvertised
+            });
 
+            SnapshotAllowedRejoiners();
+            AddPublicLobbyAttribute(modHandle, LobbyManager.AllowedRejoinersKey, BuildAllowedRejoinersAttribute());
             AddPublicLobbyAttribute(modHandle, LobbyManager.MatchStartedKey, "true");
 
             var updateOptions = new UpdateLobbyOptions { LobbyModificationHandle = modHandle };
@@ -105,7 +106,78 @@ namespace EOS.Lobby
             }
 
             _state.HasGameStarted = true;
+            if (_state.LocalProductUserId != null && _state.IsInLobby)
+            {
+                LobbyPreferences.SetInLobby(
+                    _state.LocalProductUserId,
+                    _state.CurrentLobbyId,
+                    _state.IsLobbyOwner,
+                    inMatch: true,
+                    _state.EffectiveHostAddress,
+                    _state.CurrentJoinCode);
+            }
             _completeOperation(onComplete, true, null);
+        }
+
+        public void RemoveAllowedRejoiner(ProductUserId userId)
+        {
+            if (userId == null || !_state.AllowedRejoiners.Remove(userId.ToString()))
+            {
+                return;
+            }
+
+            if (!_state.IsInLobby || !_state.IsLobbyOwner || !_state.HasGameStarted)
+            {
+                return;
+            }
+
+            if (!TryCreateModification(_state.CurrentLobbyId, out LobbyModification modHandle, null))
+            {
+                return;
+            }
+
+            AddPublicLobbyAttribute(modHandle, LobbyManager.AllowedRejoinersKey, BuildAllowedRejoinersAttribute());
+            _lobbyHandle.UpdateLobby(
+                new UpdateLobbyOptions { LobbyModificationHandle = modHandle },
+                ((Action<bool, string>)null, modHandle),
+                HandleUpdateCallback);
+        }
+
+        private void SnapshotAllowedRejoiners()
+        {
+            _state.AllowedRejoiners.Clear();
+            List<ProductUserId> members = GetCurrentMemberUserIds();
+            for (int i = 0; i < members.Count; i++)
+            {
+                ProductUserId member = members[i];
+                if (member != null && member.IsValid())
+                {
+                    _state.AllowedRejoiners.Add(member.ToString());
+                }
+            }
+        }
+
+        private string BuildAllowedRejoinersAttribute()
+        {
+            if (_state.AllowedRejoiners.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            // Cap to EOS lobby attribute value limit (~1000 bytes) while keeping the in-memory whitelist unbounded.
+            var builder = new System.Text.StringBuilder();
+            foreach (string puid in _state.AllowedRejoiners)
+            {
+                int needed = builder.Length == 0 ? puid.Length : puid.Length + 1;
+                if (builder.Length + needed > 990)
+                {
+                    break;
+                }
+
+                if (builder.Length > 0) builder.Append(',');
+                builder.Append(puid);
+            }
+            return builder.ToString();
         }
 
         public void SetReadyStatus(bool isReady, Action<bool, string> onComplete = null)
@@ -157,6 +229,8 @@ namespace EOS.Lobby
             {
                 PermissionLevel = LobbyPermissionLevel.Publicadvertised
             });
+            _state.AllowedRejoiners.Clear();
+            AddPublicLobbyAttribute(modHandle, LobbyManager.AllowedRejoinersKey, string.Empty);
             AddPublicLobbyAttribute(modHandle, LobbyManager.MatchStartedKey, "false");
 
             var updateOptions = new UpdateLobbyOptions { LobbyModificationHandle = modHandle };
@@ -175,6 +249,16 @@ namespace EOS.Lobby
             }
 
             _state.HasGameStarted = false;
+            if (_state.LocalProductUserId != null && _state.IsInLobby)
+            {
+                LobbyPreferences.SetInLobby(
+                    _state.LocalProductUserId,
+                    _state.CurrentLobbyId,
+                    _state.IsLobbyOwner,
+                    inMatch: false,
+                    _state.EffectiveHostAddress,
+                    _state.CurrentJoinCode);
+            }
             _completeOperation(onComplete, true, null);
         }
 

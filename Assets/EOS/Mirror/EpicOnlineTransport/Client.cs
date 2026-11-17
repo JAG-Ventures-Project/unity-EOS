@@ -27,6 +27,7 @@ namespace EpicTransport
         private ProductUserId hostProductId = null;
         private TaskCompletionSource<Task> connectedComplete;
         private CancellationTokenSource cancelToken;
+        private bool isDisposed;
 
         private Client(EosTransport transport) : base(transport)
         {
@@ -66,14 +67,21 @@ namespace EpicTransport
 
                 Task connectedCompleteTask = connectedComplete.Task;
 
-                if (await Task.WhenAny(connectedCompleteTask, Task.Delay(ConnectionTimeout/*, cancelToken.Token*/)) != connectedCompleteTask)
-                {
-                    Debug.LogError($"[EosTransport/Client] Connection to host {host} timed out after {ConnectionTimeout.TotalSeconds:F0}s. Please verify the host is currently running and the Product User ID is correct.");
-                    OnConnected -= SetConnectedComplete;
-                    OnConnectionFailed(hostProductId);
-                }
+                    if (await Task.WhenAny(connectedCompleteTask, Task.Delay(ConnectionTimeout, cancelToken.Token)) != connectedCompleteTask)
+                    {
+                        OnConnected -= SetConnectedComplete;
+                        if (!isDisposed && !cancelToken.IsCancellationRequested && !Connected)
+                        {
+                            Debug.LogError($"[EosTransport/Client] Connection to host {host} timed out after {ConnectionTimeout.TotalSeconds:F0}s. Please verify the host is currently running and the Product User ID is correct.");
+                            OnConnectionFailed(hostProductId);
+                        }
+                    }
 
                 OnConnected -= SetConnectedComplete;
+            }
+            catch (OperationCanceledException)
+            {
+                // Connection cancelled by Disconnect()
             }
             catch (FormatException)
             {
@@ -99,6 +107,9 @@ namespace EpicTransport
 
         public void Disconnect()
         {
+            isDisposed = true;
+            cancelToken?.Cancel();
+
             if (serverId != null)
             {
                 CloseP2PSessionWithUser(serverId, socketId);
@@ -107,18 +118,18 @@ namespace EpicTransport
             }
             else
             {
+                Dispose();
                 return;
             }
 
             SendInternal(hostProductId, socketId, InternalMessages.DISCONNECT);
 
             Dispose();
-            cancelToken?.Cancel();
 
             WaitForClose(hostProductId, socketId);
         }
 
-        private void SetConnectedComplete() => connectedComplete.SetResult(connectedComplete.Task);
+        private void SetConnectedComplete() => connectedComplete.TrySetResult(connectedComplete.Task);
 
         protected override void OnReceiveData(byte[] data, ProductUserId clientUserId, int channel)
         {
@@ -226,7 +237,11 @@ namespace EpicTransport
 
         public void Send(byte[] data, int channelId) => Send(hostProductId, socketId, data, (byte)channelId);
 
-        protected override void OnConnectionFailed(ProductUserId remoteId) => OnDisconnected.Invoke();
+        protected override void OnConnectionFailed(ProductUserId remoteId)
+        {
+            if (isDisposed) return;
+            OnDisconnected.Invoke();
+        }
         public void EosNotInitialized() => OnDisconnected.Invoke();
     }
 }

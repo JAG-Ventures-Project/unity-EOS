@@ -1,5 +1,4 @@
-﻿using UnityEngine;
-using UnityEngine.Assertions;
+using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace EOS.Test.Cursor
@@ -15,7 +14,12 @@ namespace EOS.Test.Cursor
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(cancelAction, "[CursorManager] Cancel Action is null");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (cancelAction == null) Debug.LogWarning("[CursorManager] Cancel Action is null", this);
         }
 #endif
 

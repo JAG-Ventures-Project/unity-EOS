@@ -26,6 +26,7 @@ namespace EOS.Lobby
         public event Action<ProductUserId> OnPlayerJoined;
         public event Action<ProductUserId> OnPlayerLeft;
         public event Action<string> OnUnexpectedLeft;
+        public event Action<string> OnDisconnected;
 
         public LobbyNotificationListener(
             LobbyInterface lobbyHandle,
@@ -160,6 +161,16 @@ namespace EOS.Lobby
                     if (!listener._state.HasGameStarted)
                     {
                         listener._state.HasGameStarted = true;
+                        if (listener._state.LocalProductUserId != null)
+                        {
+                            LobbyPreferences.SetInLobby(
+                                listener._state.LocalProductUserId,
+                                listener._state.CurrentLobbyId,
+                                listener._state.IsLobbyOwner,
+                                inMatch: true,
+                                listener._state.EffectiveHostAddress,
+                                listener._state.CurrentJoinCode);
+                        }
                         if (!listener._state.IsLobbyOwner)
                         {
                             listener.OnGameStarted?.Invoke(listener._state.CurrentHostAddress);
@@ -169,7 +180,22 @@ namespace EOS.Lobby
                 else if (matchStartedValue == "false")
                 {
                     listener._state.HasGameStarted = false;
+                    if (listener._state.LocalProductUserId != null)
+                    {
+                        LobbyPreferences.SetInLobby(
+                            listener._state.LocalProductUserId,
+                            listener._state.CurrentLobbyId,
+                            listener._state.IsLobbyOwner,
+                            inMatch: false,
+                            listener._state.EffectiveHostAddress,
+                            listener._state.CurrentJoinCode);
+                    }
                 }
+            }
+
+            if (!listener._state.IsLobbyOwner)
+            {
+                LobbySessionState.ParseAllowedRejoiners(detailsHandle, listener._state.AllowedRejoiners);
             }
 
             detailsHandle.Release();
@@ -185,7 +211,13 @@ namespace EOS.Lobby
 
             if (data.TargetUserId == listener._state.LocalProductUserId)
             {
-                if (data.CurrentStatus == LobbyMemberStatus.Disconnected || data.CurrentStatus == LobbyMemberStatus.Kicked)
+                if (data.CurrentStatus == LobbyMemberStatus.Disconnected)
+                {
+                    listener.OnDisconnected?.Invoke($"Disconnected from room ({data.CurrentStatus}).");
+                    return;
+                }
+
+                if (data.CurrentStatus == LobbyMemberStatus.Kicked)
                 {
                     listener.OnUnexpectedLeft?.Invoke($"Disconnected from room ({data.CurrentStatus}).");
                     return;

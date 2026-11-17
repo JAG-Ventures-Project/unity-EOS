@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -75,10 +75,15 @@ namespace EOS.Friends
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(scrollRect, "[LazyFriendsListView] ScrollRect component missing.");
-            Assert.IsNotNull(viewport, "[LazyFriendsListView] Viewport RectTransform missing.");
-            Assert.IsNotNull(content, "[LazyFriendsListView] Content RectTransform missing.");
-            Assert.IsNotNull(cardTemplate, "[LazyFriendsListView] CardTemplate reference missing.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (scrollRect == null) Debug.LogWarning("[LazyFriendsListView] ScrollRect component missing.", this);
+            if (viewport == null) Debug.LogWarning("[LazyFriendsListView] Viewport RectTransform missing.", this);
+            if (content == null) Debug.LogWarning("[LazyFriendsListView] Content RectTransform missing.", this);
+            if (cardTemplate == null) Debug.LogWarning("[LazyFriendsListView] CardTemplate reference missing.", this);
         }
 #endif
 

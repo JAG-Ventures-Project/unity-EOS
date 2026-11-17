@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using Mirror;
 #endif
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
 using EpicTransport;
 using EOS.Core;
@@ -23,6 +22,7 @@ namespace EOS.P2P
         public event Action OnUnexpectedClientDisconnect;
         public Func<NetworkConnectionToClient, string> CustomDisplayNameResolver { get; set; }
         public Func<string, string> CustomAddressDisplayNameResolver { get; set; }
+        public Func<string, bool> ConnectionValidator { get; set; }
 
         bool INetworkSessionService.IsServerActive => NetworkServer.active;
         bool INetworkSessionService.IsClientConnected => NetworkClient.isConnected;
@@ -34,16 +34,20 @@ namespace EOS.P2P
 
         private EosTransport _eosTransport;
 
-#if UNITY_EDITOR
-
-        private void OnValidate()
+        public override void OnValidate()
         {
-            Assert.IsNotNull(playerPrefab, "[EOSNetworkManager] Player Prefab is null!");
-            Assert.IsNotNull(offlineScene, "[EOSNetworkManager] Offline Scene is null!");
-            Assert.IsNotNull(onlineScene, "[EOSNetworkManager] Online Scene is null!");
-        }
+            base.OnValidate();
+#if UNITY_EDITOR
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
 
+            if (playerPrefab == null) Debug.LogWarning("[EOSNetworkManager] Player Prefab is null!", this);
+            if (string.IsNullOrEmpty(offlineScene)) Debug.LogWarning("[EOSNetworkManager] Offline Scene is null!", this);
+            if (string.IsNullOrEmpty(onlineScene)) Debug.LogWarning("[EOSNetworkManager] Online Scene is null!", this);
 #endif
+        }
 
         public override void Awake()
         {
@@ -226,11 +230,26 @@ namespace EOS.P2P
         {
             base.OnStartServer();
 
+            if (_eosTransport != null)
+            {
+                _eosTransport.ConnectionFilter = ValidateTransportConnection;
+            }
+
             if (string.IsNullOrEmpty(networkSceneName) || networkSceneName == offlineScene)
             {
                 string activePath = UnityEngine.SceneManagement.SceneManager.GetActiveScene().path;
                 networkSceneName = !string.IsNullOrEmpty(activePath) ? activePath : UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
             }
+        }
+
+        private bool ValidateTransportConnection(Epic.OnlineServices.ProductUserId remoteUserId)
+        {
+            if (remoteUserId == null || !remoteUserId.IsValid())
+            {
+                return false;
+            }
+
+            return ConnectionValidator == null || ConnectionValidator.Invoke(remoteUserId.ToString());
         }
 
         public override void OnStopServer()
@@ -350,6 +369,7 @@ namespace EOS.P2P
         void INetworkSessionService.StartClient(string hostAddress) => StartEosClient(hostAddress);
         void INetworkSessionService.StopNetwork() => StopNetwork();
         Func<string, string> INetworkSessionService.CustomAddressDisplayNameResolver { get; set; }
+        Func<string, bool> INetworkSessionService.ConnectionValidator { get; set; }
         bool INetworkSessionService.IsPlayerInSession(string productUserId, string displayName) => false;
         public bool IsPlayerInSession(string productUserId, string displayName = null) => false;
 

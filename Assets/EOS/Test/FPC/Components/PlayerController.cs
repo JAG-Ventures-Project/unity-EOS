@@ -1,8 +1,7 @@
-﻿#if MIRROR
+#if MIRROR
 using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Assertions;
 using System;
 
 namespace EOS.Test.FPC
@@ -42,13 +41,19 @@ namespace EOS.Test.FPC
         #endregion
 
 
-#if UNITY_EDITOR
-        private void OnValidate()
+        protected override void OnValidate()
         {
-            Assert.IsNotNull(_playerVisual, "PlayerVisual reference is missing!");
-            Assert.IsNotNull(_cameraController, "CameraManager reference is missing!");
-        }
+            base.OnValidate();
+#if UNITY_EDITOR
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (_playerVisual == null) Debug.LogWarning("PlayerVisual reference is missing!", this);
+            if (_cameraController == null) Debug.LogWarning("CameraManager reference is missing!", this);
 #endif
+        }
 
         void Awake()
         {

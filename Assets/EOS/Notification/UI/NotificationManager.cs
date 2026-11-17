@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.UI;
 
 namespace EOS.Notification
@@ -25,7 +24,12 @@ namespace EOS.Notification
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(notificationPanelPrefab, "[NotificationManager] notificationPanelPrefab is null! Please assign a GameObject in the inspector.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (notificationPanelPrefab == null) Debug.LogWarning("[NotificationManager] notificationPanelPrefab is null! Please assign a GameObject in the inspector.", this);
         }
 #endif
 

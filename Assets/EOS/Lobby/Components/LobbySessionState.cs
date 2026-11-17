@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using EOS.Core;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Lobby;
@@ -19,8 +20,17 @@ namespace EOS.Lobby
         public bool IsCleaningOrphan { get; set; }
         public bool HasGameStarted { get; set; }
         public bool AllowJoinInProgress { get; set; }
+        public bool UseShortJoinCode { get; set; } = true;
+        public bool AllowAutoRejoin { get; set; } = true;
         public string CurrentHostAddress { get; set; }
         public ProductUserId LocalProductUserId { get; set; }
+
+        public HashSet<string> AllowedRejoiners { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool IsAutoRejoining { get; set; }
+        public string PendingRejoinLobbyId { get; set; }
+        public string PendingRejoinHostAddress { get; set; }
+        public string PendingRejoinJoinCode { get; set; }
 
         public bool IsInLobby => !string.IsNullOrEmpty(CurrentLobbyId);
 
@@ -28,6 +38,27 @@ namespace EOS.Lobby
             IsLobbyOwner
                 ? (LocalProductUserId != null ? LocalProductUserId.ToString() : null)
                 : CurrentHostAddress;
+
+        public void SetPendingRejoin(string lobbyId, string hostAddress, string joinCode)
+        {
+            PendingRejoinLobbyId = lobbyId;
+            PendingRejoinHostAddress = hostAddress;
+            PendingRejoinJoinCode = joinCode;
+            IsAutoRejoining = !string.IsNullOrEmpty(lobbyId);
+        }
+
+        public void ClearPendingRejoin()
+        {
+            IsAutoRejoining = false;
+            PendingRejoinLobbyId = null;
+            PendingRejoinHostAddress = null;
+            PendingRejoinJoinCode = null;
+        }
+
+        public bool IsRejoinAllowed(string productUserId)
+        {
+            return !string.IsNullOrEmpty(productUserId) && AllowedRejoiners.Contains(productUserId);
+        }
 
         public void Reset()
         {
@@ -38,6 +69,7 @@ namespace EOS.Lobby
             AreAllJoinersReady = false;
             CurrentHostAddress = null;
             HasGameStarted = false;
+            AllowedRejoiners.Clear();
         }
 
         public static string ResolveLocalDisplayName(string fallback = "Player")
@@ -92,6 +124,77 @@ namespace EOS.Lobby
                 LocalUserId = LocalProductUserId
             };
             return lobbyHandle.CopyLobbyDetailsHandle(copyOptions, out detailsHandle) == Result.Success && detailsHandle != null;
+        }
+
+        public static void ParseAllowedRejoiners(LobbyDetails detailsHandle, HashSet<string> target)
+        {
+            if (target == null) return;
+            target.Clear();
+
+            if (!TryReadAttribute(detailsHandle, LobbyManager.AllowedRejoinersKey, out string raw) ||
+                string.IsNullOrWhiteSpace(raw))
+            {
+                return;
+            }
+
+            string[] parts = raw.Split(',');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string trimmed = parts[i].Trim();
+                if (!string.IsNullOrEmpty(trimmed))
+                {
+                    target.Add(trimmed);
+                }
+            }
+        }
+
+        public static bool IsUserAllowedToRejoin(LobbyDetails detailsHandle, ProductUserId userId)
+        {
+            if (detailsHandle == null || userId == null || !userId.IsValid()) return false;
+
+            if (!TryReadAttribute(detailsHandle, LobbyManager.AllowedRejoinersKey, out string raw) ||
+                string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            string target = userId.ToString();
+            int start = 0;
+            while (start < raw.Length)
+            {
+                int comma = raw.IndexOf(',', start);
+                int end = (comma < 0) ? raw.Length : comma;
+
+                while (start < end && char.IsWhiteSpace(raw[start])) start++;
+                while (end > start && char.IsWhiteSpace(raw[end - 1])) end--;
+
+                int length = end - start;
+                if (length == target.Length &&
+                    string.Compare(raw, start, target, 0, length, StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    return true;
+                }
+
+                start = (comma < 0) ? raw.Length : comma + 1;
+            }
+
+            return false;
+        }
+
+        public static bool IsUserMemberOfLobby(LobbyDetails detailsHandle, ProductUserId userId)
+        {
+            if (detailsHandle == null || userId == null || !userId.IsValid()) return false;
+
+            uint count = detailsHandle.GetMemberCount(new LobbyDetailsGetMemberCountOptions());
+            for (uint i = 0; i < count; i++)
+            {
+                ProductUserId member = detailsHandle.GetMemberByIndex(new LobbyDetailsGetMemberByIndexOptions { MemberIndex = i });
+                if (member == userId)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

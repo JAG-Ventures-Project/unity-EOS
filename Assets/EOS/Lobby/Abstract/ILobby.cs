@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Epic.OnlineServices;
 
@@ -16,6 +16,9 @@ namespace EOS.Lobby
         bool IsCleaningOrphan { get; }
         bool HasGameStarted { get; }
         bool AllowJoinInProgress { get; set; }
+        bool UseShortJoinCode { get; set; }
+        bool AllowAutoRejoin { get; set; }
+        bool IsAutoRejoining { get; }
         ProductUserId LocalProductUserId { get; }
         bool IsLocalReady { get; }
         event Action<string> OnLobbyCreated;
@@ -28,6 +31,9 @@ namespace EOS.Lobby
         event Action<bool> OnReadyStatusChanged;
         event Action OnLobbyUpdated;
         event Action<LobbyInviteCallbackData> OnLobbyInviteReceived;
+        event Action<bool, string> OnAutoRejoinStateChanged;
+        bool IsRejoinAllowed(string productUserId);
+        void CancelAutoRejoin();
         void CreateLobby(uint maxMembers, Action<bool, string> onComplete = null);
         void JoinLobbyByCode(string joinCode, Action<bool, string> onComplete = null);
         void JoinLobbyByInvite(string inviteId, Action<bool, string> onComplete = null);

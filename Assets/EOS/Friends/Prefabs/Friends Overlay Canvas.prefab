@@ -1084,7 +1084,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.0006129199, y: -2.2}
+  m_AnchoredPosition: {x: 0.0000015381767, y: -2.2}
   m_SizeDelta: {x: 340.00027, y: 40}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &5911883185976070069
@@ -1389,7 +1389,6 @@ MonoBehaviour:
   spacing: 4
   topPadding: 4
   bottomPadding: 4
-  defaultCardHeight: 52
 --- !u!1 &2881004682489076263
 GameObject:
   m_ObjectHideFlags: 0
@@ -2392,7 +2391,7 @@ Canvas:
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 1
   m_TargetDisplay: 0
 --- !u!114 &9009135516704347190
 MonoBehaviour:
@@ -3326,8 +3325,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 6763197307287078956}
   m_HandleRect: {fileID: 407588292804773559}
   m_Direction: 2
-  m_Value: 1.0000093
-  m_Size: 0.8827691
+  m_Value: 1
+  m_Size: 0.94504845
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -3424,7 +3423,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 44.15
+  m_fontSize: 47.5
   m_fontSizeBase: 31.4
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -3530,7 +3529,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3719166462271816996}
-  - component: {fileID: 4997436809674919782}
+  - component: {fileID: 1281279867913562745}
   m_Layer: 0
   m_Name: Actions
   m_TagString: Untagged
@@ -3557,7 +3556,7 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &4997436809674919782
+--- !u!114 &1281279867913562745
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -3827,7 +3826,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -0.00076769275}
+  m_AnchoredPosition: {x: 0, y: 0.0000151984395}
   m_SizeDelta: {x: 0, y: 730.57}
   m_Pivot: {x: 0, y: 1}
 --- !u!1 &8100184852845028946
@@ -3895,7 +3894,7 @@ MonoBehaviour:
   addFriendTab: {fileID: 5468786055490727936}
   blockedTab: {fileID: 4725297786303949528}
   tabActiveColor: {r: 0.427451, g: 1, b: 0.58392084, a: 1}
-  tabInactiveColor: {r: 0.7264151, g: 0.7264151, b: 0.7264151, a: 1}
+  tabInactiveColor: {r: 1, g: 1, b: 1, a: 1}
   searchInputField: {fileID: 6115208766246375488}
   searchButton: {fileID: 6899966872111496724}
   lazyListView: {fileID: 4952661469390602857}
@@ -3904,6 +3903,7 @@ MonoBehaviour:
   closeButton: {fileID: 1175539805011660314}
   slideDuration: 0.25
   startClosed: 1
+  useLobbySystem: 1
 --- !u!225 &6019444720772146999
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -4036,8 +4036,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 8731591699074805952}
   m_HandleRect: {fileID: 7048904352047086485}
   m_Direction: 0
-  m_Value: -0.000001974666
-  m_Size: 0.6381041
+  m_Value: -0.0000002692726
+  m_Size: 0.638104
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:

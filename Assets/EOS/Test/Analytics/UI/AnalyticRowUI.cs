@@ -1,6 +1,5 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
-using UnityEngine.Assertions;
 
 namespace EOS.Test.Analytics
 {
@@ -16,8 +15,13 @@ namespace EOS.Test.Analytics
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(titleText, "[AnalyticRowUI] Title Text is null");
-            Assert.IsNotNull(valueText, "[AnalyticRowUI] Value Text is null");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (titleText == null) Debug.LogWarning("[AnalyticRowUI] Title Text is null", this);
+            if (valueText == null) Debug.LogWarning("[AnalyticRowUI] Value Text is null", this);
         }
 #endif
 

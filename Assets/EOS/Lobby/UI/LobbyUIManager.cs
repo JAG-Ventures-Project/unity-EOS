@@ -24,6 +24,8 @@ namespace EOS.Lobby
         [SerializeField] private Button joinLobbyButton;
         [SerializeField] private uint maxLobbyMembers = 4;
         [SerializeField] private bool allowJoinInProgress = false;
+        [SerializeField] private bool useShortJoinCode = true;
+        [SerializeField] private bool allowAutoRejoin = true;
 
         [Header("In-Lobby View Controls")]
         [SerializeField] private TextMeshProUGUI roomCodeText;
@@ -51,19 +53,25 @@ namespace EOS.Lobby
         private void OnValidate()
         {
             nextSceneName = (nextScene != null) ? nextScene.name : "GameScene";
-            Assert.IsNotNull(menuPanel, "[LobbyUIManager] menuPanel is null! Please assign in inspector.");
-            Assert.IsNotNull(inLobbyPanel, "[LobbyUIManager] inLobbyPanel is null! Please assign in inspector.");
-            Assert.IsNotNull(createLobbyButton, "[LobbyUIManager] createLobbyButton is null! Please assign in inspector.");
-            Assert.IsNotNull(joinCodeInputField, "[LobbyUIManager] joinCodeInputField is null! Please assign in inspector.");
-            Assert.IsNotNull(joinLobbyButton, "[LobbyUIManager] joinLobbyButton is null! Please assign in inspector.");
-            Assert.IsNotNull(roomCodeText, "[LobbyUIManager] roomCodeText is null! Please assign in inspector.");
-            Assert.IsNotNull(copyCodeButton, "[LobbyUIManager] copyCodeButton is null! Please assign in inspector.");
-            Assert.IsNotNull(memberCountText, "[LobbyUIManager] memberCountText is null! Please assign in inspector.");
-            Assert.IsNotNull(leaveLobbyButton, "[LobbyUIManager] leaveLobbyButton is null! Please assign in inspector.");
-            Assert.IsNotNull(startGameButton, "[LobbyUIManager] startGameButton is null! Please assign in inspector.");
-            Assert.IsNotNull(playerCardPrefab, "[LobbyUIManager] playerCardPrefab is null! Please assign in inspector.");
-            Assert.IsNotNull(playerCardsParent, "[LobbyUIManager] playerCardsParent is null! Please assign in inspector.");
-            Assert.IsTrue(playerCardImages != null && playerCardImages.Count > 0, "[LobbyUIManager] playerCardImages list is empty! Please assign at least one image.");
+
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (menuPanel == null) Debug.LogWarning("[LobbyUIManager] menuPanel is null! Please assign in inspector.", this);
+            if (inLobbyPanel == null) Debug.LogWarning("[LobbyUIManager] inLobbyPanel is null! Please assign in inspector.", this);
+            if (createLobbyButton == null) Debug.LogWarning("[LobbyUIManager] createLobbyButton is null! Please assign in inspector.", this);
+            if (joinCodeInputField == null) Debug.LogWarning("[LobbyUIManager] joinCodeInputField is null! Please assign in inspector.", this);
+            if (joinLobbyButton == null) Debug.LogWarning("[LobbyUIManager] joinLobbyButton is null! Please assign in inspector.", this);
+            if (roomCodeText == null) Debug.LogWarning("[LobbyUIManager] roomCodeText is null! Please assign in inspector.", this);
+            if (copyCodeButton == null) Debug.LogWarning("[LobbyUIManager] copyCodeButton is null! Please assign in inspector.", this);
+            if (memberCountText == null) Debug.LogWarning("[LobbyUIManager] memberCountText is null! Please assign in inspector.", this);
+            if (leaveLobbyButton == null) Debug.LogWarning("[LobbyUIManager] leaveLobbyButton is null! Please assign in inspector.", this);
+            if (startGameButton == null) Debug.LogWarning("[LobbyUIManager] startGameButton is null! Please assign in inspector.", this);
+            if (playerCardPrefab == null) Debug.LogWarning("[LobbyUIManager] playerCardPrefab is null! Please assign in inspector.", this);
+            if (playerCardsParent == null) Debug.LogWarning("[LobbyUIManager] playerCardsParent is null! Please assign in inspector.", this);
+            if (playerCardImages == null || playerCardImages.Count == 0) Debug.LogWarning("[LobbyUIManager] playerCardImages list is empty! Please assign at least one image.", this);
         }
 #endif
 
@@ -91,23 +99,44 @@ namespace EOS.Lobby
             _lobby.OnGameStarted += HandleOnGameStarted;
             _lobby.OnReadyStatusChanged += HandleOnReadyStatusChanged;
             _lobby.OnLobbyUpdated += HandleOnLobbyUpdated;
+            _lobby.OnAutoRejoinStateChanged += HandleAutoRejoinStateChanged;
         }
 
         private void Start()
         {
-            if (FriendsManager.Instance != null)
+            FriendsManager.OnInitialized -= HandleFriendsSystemInitialized;
+            FriendsManager.OnInitialized += HandleFriendsSystemInitialized;
+
+            if (IsFriendsSystemAvailable())
             {
-                FriendsManager.Instance.OnFriendsListUpdated -= HandleFriendsListUpdated;
-                FriendsManager.Instance.OnFriendsListUpdated += HandleFriendsListUpdated;
+                SubscribeFriendsEvents();
             }
 
             NetworkService.Current.CustomAddressDisplayNameResolver = ResolveLobbyDisplayName;
             NetworkService.Current.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
             NetworkService.Current.OnUnexpectedClientDisconnect += HandleUnexpectedClientDisconnect;
 
-            if (_lobby != null && _lobby.IsInLobby)
+            _lobby.AllowJoinInProgress = allowJoinInProgress;
+            _lobby.UseShortJoinCode = useShortJoinCode;
+            _lobby.AllowAutoRejoin = allowAutoRejoin;
+
+            if (_lobby.IsAutoRejoining)
             {
-                RestoreInLobbyUI();
+                SetPanelState(isInLobby: false);
+                SetMenuButtonsInteractable(false);
+            }
+            else if (_lobby.IsInLobby)
+            {
+                if (_lobby.HasGameStarted && !_lobby.IsLobbyOwner)
+                {
+                    SetPanelState(isInLobby: false);
+                    SetMenuButtonsInteractable(false);
+                    _lobby.HandleNetworkDisconnect();
+                }
+                else
+                {
+                    RestoreInLobbyUI();
+                }
             }
             else
             {
@@ -115,13 +144,12 @@ namespace EOS.Lobby
                 SetPanelState(isInLobby: false);
                 SetMenuButtonsInteractable(false);
                 _lobby.CheckAndCleanOrphanLobbyOnLogin(HandleOrphanCleanupComplete);
-                _lobby.AllowJoinInProgress = allowJoinInProgress;
             }
         }
 
         private void HandleOrphanCleanupComplete()
         {
-            SetMenuButtonsInteractable(true);
+            SetMenuButtonsInteractable(!_lobby.IsAutoRejoining && !_lobby.IsInLobby);
         }
 
         private void RestoreInLobbyUI()
@@ -139,7 +167,9 @@ namespace EOS.Lobby
 
         private void OnDestroy()
         {
-            if (FriendsManager.Instance != null)
+            FriendsManager.OnInitialized -= HandleFriendsSystemInitialized;
+
+            if (FriendsManager.HasInstance)
             {
                 FriendsManager.Instance.OnFriendsListUpdated -= HandleFriendsListUpdated;
             }
@@ -157,6 +187,7 @@ namespace EOS.Lobby
                 _lobby.OnGameStarted -= HandleOnGameStarted;
                 _lobby.OnReadyStatusChanged -= HandleOnReadyStatusChanged;
                 _lobby.OnLobbyUpdated -= HandleOnLobbyUpdated;
+                _lobby.OnAutoRejoinStateChanged -= HandleAutoRejoinStateChanged;
             }
 
             for (int i = 0; i < _cardPool.Count; i++)
@@ -172,6 +203,9 @@ namespace EOS.Lobby
         private void OnCreateLobbyButtonClicked()
         {
             SetMenuButtonsInteractable(false);
+            _lobby.AllowJoinInProgress = allowJoinInProgress;
+            _lobby.UseShortJoinCode = useShortJoinCode;
+            _lobby.AllowAutoRejoin = allowAutoRejoin;
             _lobby.CreateLobby(maxLobbyMembers);
         }
 
@@ -258,6 +292,11 @@ namespace EOS.Lobby
 
         private void HandleOnGameStarted(string hostAddress)
         {
+            if (NetworkService.Current.IsClientActive || NetworkService.Current.IsClientConnected)
+            {
+                return;
+            }
+
             SetLobbyButtonsInteractable(false);
 
             FriendsOverlayManager.Instance?.PersistForGameScene();
@@ -278,6 +317,11 @@ namespace EOS.Lobby
 
         private void HandleOnLobbyJoined(string hostAddress)
         {
+            if (_lobby.IsAutoRejoining)
+            {
+                return;
+            }
+
             roomCodeText.text = _lobby.CurrentJoinCode;
             UpdateMemberCountDisplay();
             UpdateActionButtonsDisplay();
@@ -345,8 +389,41 @@ namespace EOS.Lobby
 
         private void HandleUnexpectedClientDisconnect()
         {
-            _lobby?.HandleNetworkDisconnect();
+            if (_lobby != null && _lobby.IsAutoRejoining)
+            {
+                return;
+            }
+
             NotificationManager.Show("Disconnected from server.", NotificationType.Warning);
+        }
+
+        private void HandleAutoRejoinStateChanged(bool isRejoining, string message)
+        {
+            if (isRejoining)
+            {
+                SetPanelState(isInLobby: false);
+                SetMenuButtonsInteractable(false);
+                if (!string.IsNullOrEmpty(message))
+                {
+                    NotificationManager.Show(message, NotificationType.Warning);
+                }
+                return;
+            }
+
+            if (_lobby != null && _lobby.IsInLobby && !_lobby.HasGameStarted)
+            {
+                RestoreInLobbyUI();
+            }
+            else if (_lobby == null || !_lobby.IsInLobby)
+            {
+                SetPanelState(isInLobby: false);
+                SetMenuButtonsInteractable(true);
+            }
+
+            if (!string.IsNullOrEmpty(message))
+            {
+                NotificationManager.Show(message, NotificationType.Normal);
+            }
         }
 
         private void SetPanelState(bool isInLobby)
@@ -425,10 +502,28 @@ namespace EOS.Lobby
             _activePlayerCards[key] = card;
         }
 
+        private static bool IsFriendsSystemAvailable()
+        {
+            return FriendsManager.HasInstance && FriendsManager.Instance.IsInitialized;
+        }
+
+        private void SubscribeFriendsEvents()
+        {
+            if (!FriendsManager.HasInstance) return;
+            FriendsManager.Instance.OnFriendsListUpdated -= HandleFriendsListUpdated;
+            FriendsManager.Instance.OnFriendsListUpdated += HandleFriendsListUpdated;
+        }
+
+        private void HandleFriendsSystemInitialized()
+        {
+            SubscribeFriendsEvents();
+            UpdateAllCardsAddFriendStatus();
+        }
+
         private bool CanAddFriend(ProductUserId userId)
         {
             if (userId == null || userId == _lobby.LocalProductUserId) return false;
-            if (FriendsManager.Instance == null) return false;
+            if (!IsFriendsSystemAvailable()) return false;
 
             string displayName = _lobby.GetMemberDisplayName(userId);
             FriendRelationStatus status = FriendsManager.Instance.GetRelationship(userId.ToString(), displayName);

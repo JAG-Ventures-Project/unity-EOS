@@ -66,6 +66,7 @@ namespace EOS.Friends
         public IReadOnlyList<FriendModel> IncomingRequests => _incomingRequests;
         public IReadOnlyList<FriendModel> OutgoingRequests => _outgoingRequests;
         public bool IsRefreshing { get; private set; }
+        public bool IsInitialized => _isInitialized;
 
         public ICrossPlayFriendsStore CrossPlayStore => _friendsStore;
         public ILobbyInviteService LobbyInvites => _inviteService;
@@ -73,8 +74,10 @@ namespace EOS.Friends
 
         public event Action OnFriendsListUpdated;
         public event Action<FriendModel> OnFriendStatusChanged;
+        public static event Action OnInitialized;
 
         private static FriendsManager _instance;
+        public static bool HasInstance => _instance != null;
         public static FriendsManager Instance => _instance ??= CreateDefaultInstance();
 
         private static FriendsManager CreateDefaultInstance()
@@ -191,6 +194,8 @@ namespace EOS.Friends
             {
                 SubscribeLobbyEvents(ActiveLobby);
             }
+
+            OnInitialized?.Invoke();
         }
 
         public void RefreshFriends(Action onComplete = null)

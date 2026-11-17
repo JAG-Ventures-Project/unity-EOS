@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Assertions;
 
 namespace EOS.Notification
 {
@@ -32,9 +31,14 @@ namespace EOS.Notification
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(titleText, "[Notification] titleText is null! Please assign a TMP_Text in the inspector.");
-            Assert.IsNotNull(notificationText, "[Notification] notificationText is null! Please assign a TMP_Text in the inspector.");
-            Assert.IsNotNull(dismissButton, "[Notification] dismissButton is null! Please assign a Button in the inspector.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (titleText == null) Debug.LogWarning("[Notification] titleText is null! Please assign a TMP_Text in the inspector.", this);
+            if (notificationText == null) Debug.LogWarning("[Notification] notificationText is null! Please assign a TMP_Text in the inspector.", this);
+            if (dismissButton == null) Debug.LogWarning("[Notification] dismissButton is null! Please assign a Button in the inspector.", this);
         }
 #endif
 

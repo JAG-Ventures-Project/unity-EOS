@@ -1,5 +1,4 @@
-﻿using UnityEngine;
-using UnityEngine.Assertions;
+using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace EOS.Test.FPC
@@ -21,9 +20,14 @@ namespace EOS.Test.FPC
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(horizontalHolder, "HorizontalHolder reference is missing!");
-            Assert.IsNotNull(verticalHolder, "VerticalHolder reference is missing!");
-            Assert.IsNotNull(_cameraSettings, "CameraSettings reference is missing!");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (horizontalHolder == null) Debug.LogWarning("HorizontalHolder reference is missing!", this);
+            if (verticalHolder == null) Debug.LogWarning("VerticalHolder reference is missing!", this);
+            if (_cameraSettings == null) Debug.LogWarning("CameraSettings reference is missing!", this);
         }
 #endif
         private void LateUpdate()

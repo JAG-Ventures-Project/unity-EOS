@@ -7,6 +7,6 @@ Epic Online Service For Unity
 2. Click **`+`** > **Install package from git URL...** (Import by Git URL).
 3. Paste this link:
    ```text
-   https://github.com/JAG-Ventures-Project/unity-EOS.git?path=/Assets/EOS#main
+   https://github.com/JAG-Ventures-Project/unity-EOS.git?path=/Assets/EOS#latest
    ```
 4. Click **Install** (Import).

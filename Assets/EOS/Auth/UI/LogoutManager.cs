@@ -23,7 +23,13 @@ namespace EOS.Auth
         private void OnValidate()
         {
             nextSceneName = (nextScene != null) ? nextScene.name : "LoginScene";
-            Assert.IsNotNull(logoutButton, "[LogoutManager] logoutButton is null! Please assign a Button in the inspector.");
+
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (logoutButton == null) Debug.LogWarning("[LogoutManager] logoutButton is null! Please assign a Button in the inspector.", this);
         }
 #endif
 

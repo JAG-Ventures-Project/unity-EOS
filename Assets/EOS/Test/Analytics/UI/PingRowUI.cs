@@ -1,7 +1,6 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Assertions;
 
 namespace EOS.Test.Analytics
 {
@@ -25,9 +24,14 @@ namespace EOS.Test.Analytics
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(playerNameText, "[PingRowUI] playerNameText is null");
-            Assert.IsNotNull(pingText, "[PingRowUI] pingText is null");
-            Assert.IsNotNull(pingIndicatorImage, "[PingRowUI] pingIndicatorImage is null");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (playerNameText == null) Debug.LogWarning("[PingRowUI] playerNameText is null", this);
+            if (pingText == null) Debug.LogWarning("[PingRowUI] pingText is null", this);
+            if (pingIndicatorImage == null) Debug.LogWarning("[PingRowUI] pingIndicatorImage is null", this);
         }
 #endif
 

@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using EOS.Auth;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.UI;
 
 namespace EOS.Friends
@@ -40,12 +39,17 @@ namespace EOS.Friends
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(userAvatar, "[FriendCardUI] userAvatar component missing.");
-            Assert.IsNotNull(frame, "[FriendCardUI] frame component missing.");
-            Assert.IsNotNull(userNameText, "[FriendCardUI] userNameText missing.");
-            Assert.IsNotNull(userCodeText, "[FriendCardUI] userCodeText missing.");
-            Assert.IsNotNull(statusText, "[FriendCardUI] statusText missing.");
-            Assert.IsNotNull(cardButton, "[FriendCardUI] cardButton component missing.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (userAvatar == null) Debug.LogWarning("[FriendCardUI] userAvatar component missing.", this);
+            if (frame == null) Debug.LogWarning("[FriendCardUI] frame component missing.", this);
+            if (userNameText == null) Debug.LogWarning("[FriendCardUI] userNameText missing.", this);
+            if (userCodeText == null) Debug.LogWarning("[FriendCardUI] userCodeText missing.", this);
+            if (statusText == null) Debug.LogWarning("[FriendCardUI] statusText missing.", this);
+            if (cardButton == null) Debug.LogWarning("[FriendCardUI] cardButton component missing.", this);
         }
 #endif
 

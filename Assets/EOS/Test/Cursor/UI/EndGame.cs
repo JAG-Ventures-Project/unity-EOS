@@ -3,7 +3,6 @@ using EOS.Friends;
 using EOS.Lobby;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Assertions;
 
 namespace EOS.Test.Cursor
 {
@@ -16,7 +15,12 @@ namespace EOS.Test.Cursor
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(endGameButton, "[EndGame] endGameButton is null! Please assign in inspector.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (endGameButton == null) Debug.LogWarning("[EndGame] endGameButton is null! Please assign in inspector.", this);
         }
 #endif
 

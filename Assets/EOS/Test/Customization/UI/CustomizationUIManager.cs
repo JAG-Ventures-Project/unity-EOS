@@ -1,11 +1,10 @@
-﻿using System;
+using System;
 using EOS.Test.Pet;
 using EOS.Test.FPC;
 using EOS.Test.Cursor;
 using EOS.Core;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Assertions;
 
 namespace EOS.Test.Customization
 {
@@ -43,18 +42,19 @@ namespace EOS.Test.Customization
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(menuPanel, "[CustomizationUIManager] menuPanel is null! Please assign in inspector.");
-            Assert.IsNotNull(openButton, "[CustomizationUIManager] openButton is null! Please assign in inspector.");
-            Assert.IsNotNull(closeButton, "[CustomizationUIManager] closeButton is null! Please assign in inspector.");
-            Assert.IsNotNull(colorButtonPrefab, "[CustomizationUIManager] colorButtonPrefab is null! Please assign in inspector.");
-            Assert.IsNotNull(playerColorPreview, "[CustomizationUIManager] playerColorPreview is null! Please assign in inspector.");
-            Assert.IsNotNull(playerColorGridParent, "[CustomizationUIManager] playerColorGridParent is null! Please assign in inspector.");
-            // Q: do i re activate them ?
-            // Assert.IsNotNull(petColorPreview, "[CustomizationUIManager] petColorPreview is null! Please assign in inspector.");
-            // Assert.IsNotNull(petColorGridParent, "[CustomizationUIManager] petColorGridParent is null! Please assign in inspector.");
-            // Assert.IsNotNull(petActiveToggle, "[CustomizationUIManager] petActiveToggle is null! Please assign in inspector.");
-            Assert.IsTrue(playerPresetColors != null && playerPresetColors.Length > 0, "[CustomizationUIManager] playerPresetColors is empty! Please assign in inspector.");
-            Assert.IsTrue(petPresetColors != null && petPresetColors.Length > 0, "[CustomizationUIManager] petPresetColors is empty! Please assign in inspector.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (menuPanel == null) Debug.LogWarning("[CustomizationUIManager] menuPanel is null! Please assign in inspector.", this);
+            if (openButton == null) Debug.LogWarning("[CustomizationUIManager] openButton is null! Please assign in inspector.", this);
+            if (closeButton == null) Debug.LogWarning("[CustomizationUIManager] closeButton is null! Please assign in inspector.", this);
+            if (colorButtonPrefab == null) Debug.LogWarning("[CustomizationUIManager] colorButtonPrefab is null! Please assign in inspector.", this);
+            if (playerColorPreview == null) Debug.LogWarning("[CustomizationUIManager] playerColorPreview is null! Please assign in inspector.", this);
+            if (playerColorGridParent == null) Debug.LogWarning("[CustomizationUIManager] playerColorGridParent is null! Please assign in inspector.", this);
+            if (playerPresetColors == null || playerPresetColors.Length == 0) Debug.LogWarning("[CustomizationUIManager] playerPresetColors is empty! Please assign in inspector.", this);
+            if (petPresetColors == null || petPresetColors.Length == 0) Debug.LogWarning("[CustomizationUIManager] petPresetColors is empty! Please assign in inspector.", this);
         }
 #endif
 

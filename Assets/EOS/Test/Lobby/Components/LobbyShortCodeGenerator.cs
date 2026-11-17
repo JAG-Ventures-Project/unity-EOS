@@ -13,12 +13,39 @@ namespace EOS.Test.Lobby
     [DisallowMultipleComponent]
     public class LobbyShortCodeGenerator : MonoBehaviour
     {
+        [SerializeField] private bool useShortCode = true;
         [SerializeField] private int codeLength = 5;
         private const string CodeCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
         private void Awake()
         {
-            LobbyManager.CustomJoinCodeGenerator = GenerateShortCode;
+            ApplySetting();
+        }
+
+        private void OnValidate()
+        {
+            if (Application.isPlaying)
+            {
+                ApplySetting();
+            }
+        }
+
+        private void ApplySetting()
+        {
+            if (useShortCode)
+            {
+                LobbyManager.CustomJoinCodeGenerator = GenerateShortCode;
+            }
+            else if (LobbyManager.CustomJoinCodeGenerator == GenerateShortCode ||
+                     LobbyManager.CustomJoinCodeGenerator == GenerateDefaultShortCode)
+            {
+                LobbyManager.CustomJoinCodeGenerator = null;
+            }
+
+            if (LobbyManager.Instance != null)
+            {
+                LobbyManager.Instance.UseShortJoinCode = useShortCode;
+            }
         }
 
         private void OnDestroy()
@@ -45,10 +72,12 @@ namespace EOS.Test.Lobby
             return builder.ToString();
         }
 
+        private static string GenerateDefaultShortCode() => GenerateCode(5);
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void AutoRegisterTesterCodeGenerator()
         {
-            LobbyManager.CustomJoinCodeGenerator = () => GenerateCode(5);
+            LobbyManager.CustomJoinCodeGenerator = GenerateDefaultShortCode;
         }
     }
 }

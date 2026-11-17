@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Assertions;
 
 namespace EOS.Test.Analytics
 {
@@ -41,8 +40,13 @@ namespace EOS.Test.Analytics
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(rowsParent, "[NetworkDiagnosticsUI] Rows Parent is null! Please assign in inspector.");
-            Assert.IsNotNull(rowPrefab, "[NetworkDiagnosticsUI] Row Prefab is null! Please assign in inspector.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (rowsParent == null) Debug.LogWarning("[NetworkDiagnosticsUI] Rows Parent is null! Please assign in inspector.", this);
+            if (rowPrefab == null) Debug.LogWarning("[NetworkDiagnosticsUI] Row Prefab is null! Please assign in inspector.", this);
         }
 #endif
 

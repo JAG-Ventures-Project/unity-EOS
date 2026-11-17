@@ -38,8 +38,12 @@ namespace EOS.Friends
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(actionButtonPrefab, "[FriendActionsMenuUI] actionButtonPrefab is null.");
-            Assert.IsNotNull(buttonsParent, "[FriendActionsMenuUI] buttonsParent is null.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (actionButtonPrefab == null) Debug.LogWarning("[FriendActionsMenuUI] actionButtonPrefab is null.", this);
         }
 #endif
         private void Awake()

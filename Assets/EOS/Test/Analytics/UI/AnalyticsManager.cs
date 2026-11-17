@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.InputSystem;
 
 namespace EOS.Test.Analytics
@@ -33,8 +32,13 @@ namespace EOS.Test.Analytics
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(analyticsMenuPanel, "[AnalyticsManager] analyticsMenuPanel is null! Please assign the panel GameObject in inspector.");
-            Assert.IsNotNull(tabAction, "[AnalyticsManager] tabAction is null! Please assign the input action in inspector.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (analyticsMenuPanel == null) Debug.LogWarning("[AnalyticsManager] analyticsMenuPanel is null! Please assign the panel GameObject in inspector.", this);
+            if (tabAction == null) Debug.LogWarning("[AnalyticsManager] tabAction is null! Please assign the input action in inspector.", this);
         }
 #endif
 

@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Assertions;
 
 namespace EOS.Test.Analytics
 {
@@ -24,8 +23,13 @@ namespace EOS.Test.Analytics
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(pingListParent, "[PingAnalyticsUI] PingListParent reference is missing. Please assign the parent transform.");
-            Assert.IsNotNull(pingRowPrefab, "[PingAnalyticsUI] PingRowPrefab reference is missing. Please assign the prefab.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (pingListParent == null) Debug.LogWarning("[PingAnalyticsUI] PingListParent reference is missing. Please assign the parent transform.", this);
+            if (pingRowPrefab == null) Debug.LogWarning("[PingAnalyticsUI] PingRowPrefab reference is missing. Please assign the prefab.", this);
         }
 #endif
 

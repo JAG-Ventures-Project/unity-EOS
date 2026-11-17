@@ -10,10 +10,16 @@ namespace EOS.Core
     {
         private static INetworkSessionService _current = new NullNetworkSessionService();
 
+        public static event Action<INetworkSessionService> OnCurrentChanged;
+
         public static INetworkSessionService Current
         {
             get => _current ??= new NullNetworkSessionService();
-            set => _current = value ?? new NullNetworkSessionService();
+            set
+            {
+                _current = value ?? new NullNetworkSessionService();
+                OnCurrentChanged?.Invoke(_current);
+            }
         }
     }
 }

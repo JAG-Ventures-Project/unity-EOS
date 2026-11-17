@@ -1,5 +1,4 @@
-﻿using UnityEngine;
-using UnityEngine.Assertions;
+using UnityEngine;
 
 namespace EOS.Test.FPC
 {
@@ -11,8 +10,13 @@ namespace EOS.Test.FPC
 #if UNITY_EDITOR
         private void OnValidate()
         {
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
             TryGetComponent(out _meshRenderer);
-            Assert.IsNotNull(_meshRenderer, "Renderer is null!");
+            if (_meshRenderer == null) Debug.LogWarning("Renderer is null!", this);
         }
 #endif
 

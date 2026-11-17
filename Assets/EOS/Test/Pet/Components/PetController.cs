@@ -1,8 +1,7 @@
-﻿#if MIRROR
+#if MIRROR
 using System;
 using Mirror;
 using UnityEngine;
-using UnityEngine.Assertions;
 
 namespace EOS.Test.Pet
 {
@@ -53,17 +52,23 @@ namespace EOS.Test.Pet
         public bool IsPetActive => _isPetActive;
         #endregion
 
-#if UNITY_EDITOR
-        private void OnValidate()
+        protected override void OnValidate()
         {
+            base.OnValidate();
+#if UNITY_EDITOR
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
             TryGetComponent(out _meshRenderer);
             TryGetComponent(out _collider);
             TryGetComponent(out _networkTransform);
-            Assert.IsNotNull(_meshRenderer, "[PetController] Renderer component missing.");
-            Assert.IsNotNull(_collider, "[PetController] Collider component missing.");
-            Assert.IsNotNull(_networkTransform, "[PetController] NetworkTransformReliable component missing.");
-        }
+            if (_meshRenderer == null) Debug.LogWarning("[PetController] Renderer component missing.", this);
+            if (_collider == null) Debug.LogWarning("[PetController] Collider component missing.", this);
+            if (_networkTransform == null) Debug.LogWarning("[PetController] NetworkTransformReliable component missing.", this);
 #endif
+        }
         private void Awake()
         {
             this.enabled = false;

@@ -26,6 +26,7 @@ namespace EOS.Lobby
         private readonly Action<string> _notifyGameStarted;
         private readonly Action<Action<bool, string>, bool, string> _completeOperation;
         private readonly Action<Action<bool>, bool, string> _completeBoolOperation;
+        private Action<string, string, string, Action> _onOrphanMatchFound;
 
         public LobbySessionService(
             LobbyInterface lobbyHandle,
@@ -49,6 +50,11 @@ namespace EOS.Lobby
             _notifyGameStarted = notifyGameStarted;
             _completeOperation = completeOperation;
             _completeBoolOperation = completeBoolOperation;
+        }
+
+        public void SetOrphanMatchHandler(Action<string, string, string, Action> handler)
+        {
+            _onOrphanMatchFound = handler;
         }
 
         public void CreateLobby(uint maxMembers, Action<bool, string> onComplete = null)
@@ -76,10 +82,24 @@ namespace EOS.Lobby
             _state.LocalProductUserId = ConnectManager.Instance?.LocalProductUserId;
 
             if (_state.LocalProductUserId == null ||
-                !LobbyPreferences.HasOrphanLobby(_state.LocalProductUserId, out string orphanLobbyId, out bool isOwner))
+                !LobbyPreferences.HasOrphanLobby(
+                    _state.LocalProductUserId,
+                    out string orphanLobbyId,
+                    out bool isOwner,
+                    out bool wasInMatch,
+                    out string hostAddress,
+                    out string joinCode))
             {
                 _state.IsCleaningOrphan = false;
                 onComplete?.Invoke();
+                return;
+            }
+
+            if (_state.AllowAutoRejoin && !isOwner && wasInMatch && _onOrphanMatchFound != null)
+            {
+                _state.IsCleaningOrphan = false;
+                Debug.Log($"[LobbyManager] Active match disconnect/crash detected for lobby {orphanLobbyId}. Attempting automatic rejoin...");
+                _onOrphanMatchFound.Invoke(orphanLobbyId, hostAddress, joinCode, onComplete);
                 return;
             }
 
@@ -136,11 +156,17 @@ namespace EOS.Lobby
             }
 
             _state.CurrentLobbyId = data.LobbyId;
-            _state.CurrentJoinCode = LobbyManager.CustomJoinCodeGenerator != null
+            _state.CurrentJoinCode = (_state.UseShortJoinCode && LobbyManager.CustomJoinCodeGenerator != null)
                 ? LobbyManager.CustomJoinCodeGenerator.Invoke()
                 : _state.CurrentLobbyId;
             _state.IsLobbyOwner = true;
-            LobbyPreferences.SetInLobby(_state.LocalProductUserId, _state.CurrentLobbyId, isOwner: true);
+            LobbyPreferences.SetInLobby(
+                _state.LocalProductUserId,
+                _state.CurrentLobbyId,
+                isOwner: true,
+                inMatch: false,
+                _state.EffectiveHostAddress,
+                _state.CurrentJoinCode);
 
             _attributes.SetInitialLobbyAttributes(
                 _state.CurrentLobbyId,
@@ -240,7 +266,69 @@ namespace EOS.Lobby
             JoinFromDetailsHandle(detailsHandle, joinCode, onComplete);
         }
 
-        private void JoinFromDetailsHandle(LobbyDetails detailsHandle, string joinCode, Action<bool, string> onComplete)
+        public void FindLobbyById(string lobbyId, Action<Result, LobbyDetails> onComplete)
+        {
+            if (string.IsNullOrEmpty(lobbyId) || onComplete == null)
+            {
+                onComplete?.Invoke(Result.InvalidParameters, null);
+                return;
+            }
+
+            _state.LocalProductUserId = ConnectManager.Instance?.LocalProductUserId;
+            if (_state.LocalProductUserId == null || !_state.LocalProductUserId.IsValid())
+            {
+                onComplete.Invoke(Result.InvalidUser, null);
+                return;
+            }
+
+            Result result = _lobbyHandle.CreateLobbySearch(new CreateLobbySearchOptions { MaxResults = 1 }, out LobbySearch searchHandle);
+            if (result != Result.Success || searchHandle == null)
+            {
+                onComplete.Invoke(result, null);
+                return;
+            }
+
+            searchHandle.SetLobbyId(new LobbySearchSetLobbyIdOptions { LobbyId = lobbyId });
+            searchHandle.Find(
+                new LobbySearchFindOptions { LocalUserId = _state.LocalProductUserId },
+                (searchHandle, onComplete),
+                HandleFindLobbyByIdCallback);
+        }
+
+        private void HandleFindLobbyByIdCallback(LobbySearchFindCallbackInfo data)
+        {
+            var (searchHandle, onComplete) = ((LobbySearch, Action<Result, LobbyDetails>))data.ClientData;
+            if (data.ResultCode != Result.Success)
+            {
+                searchHandle.Release();
+                onComplete?.Invoke(data.ResultCode, null);
+                return;
+            }
+
+            if (searchHandle.GetSearchResultCount(new LobbySearchGetSearchResultCountOptions()) == 0)
+            {
+                searchHandle.Release();
+                onComplete?.Invoke(Result.NotFound, null);
+                return;
+            }
+
+            Result copyResult = searchHandle.CopySearchResultByIndex(new LobbySearchCopySearchResultByIndexOptions { LobbyIndex = 0 }, out LobbyDetails detailsHandle);
+            searchHandle.Release();
+            onComplete?.Invoke(copyResult, copyResult == Result.Success ? detailsHandle : null);
+        }
+
+        public void JoinFoundLobbyDetails(LobbyDetails detailsHandle, string joinCode, bool isAutoRejoin, Action<bool, string> onComplete)
+        {
+            if (detailsHandle == null)
+            {
+                _completeOperation(onComplete, false, "Lobby details unavailable.");
+                return;
+            }
+
+            JoinFromDetailsHandle(detailsHandle, joinCode, onComplete, isAutoRejoin);
+        }
+
+        private void JoinFromDetailsHandle(LobbyDetails detailsHandle, string joinCode, Action<bool, string> onComplete, bool isAutoRejoin = false)
         {
             LobbySessionState.TryReadAttribute(detailsHandle, LobbyManager.HostAddressKey, out string hostAddress);
             bool matchAlreadyStarted = LobbySessionState.TryReadAttribute(detailsHandle, LobbyManager.MatchStartedKey, out string startedVal)
@@ -250,8 +338,9 @@ namespace EOS.Lobby
             {
                 bool allowsJoinInProgress = LobbySessionState.TryReadAttribute(detailsHandle, LobbyManager.AllowJoinInProgressKey, out string allowVal)
                     && allowVal == "true";
+                bool isWhitelistedRejoiner = LobbySessionState.IsUserAllowedToRejoin(detailsHandle, _state.LocalProductUserId);
 
-                if (!allowsJoinInProgress)
+                if (!allowsJoinInProgress && !isWhitelistedRejoiner)
                 {
                     detailsHandle.Release();
                     _completeOperation(onComplete, false, "Match has already started in this room.");
@@ -265,7 +354,7 @@ namespace EOS.Lobby
                 LocalUserId = _state.LocalProductUserId,
                 PresenceEnabled = true
             };
-            _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted), HandleJoinLobbyCallback);
+            _lobbyHandle.JoinLobby(joinOptions, (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted, isAutoRejoin), HandleJoinLobbyCallback);
         }
 
         private void HandleJoinLobbyCallback(JoinLobbyCallbackInfo data)
@@ -275,8 +364,13 @@ namespace EOS.Lobby
             string hostAddress = string.Empty;
             LobbyDetails detailsHandle = null;
             bool matchAlreadyStarted = false;
+            bool isAutoRejoin = false;
 
-            if (data.ClientData is ValueTuple<Action<bool, string>, string, string, LobbyDetails, bool> tuple5)
+            if (data.ClientData is ValueTuple<Action<bool, string>, string, string, LobbyDetails, bool, bool> tuple6)
+            {
+                (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted, isAutoRejoin) = tuple6;
+            }
+            else if (data.ClientData is ValueTuple<Action<bool, string>, string, string, LobbyDetails, bool> tuple5)
             {
                 (onComplete, joinCode, hostAddress, detailsHandle, matchAlreadyStarted) = tuple5;
             }
@@ -285,19 +379,36 @@ namespace EOS.Lobby
                 (onComplete, joinCode, hostAddress, detailsHandle) = tuple4;
             }
 
-            detailsHandle?.Release();
+            if (detailsHandle != null)
+            {
+                LobbySessionState.ParseAllowedRejoiners(detailsHandle, _state.AllowedRejoiners);
+                detailsHandle.Release();
+            }
 
-            if (data.ResultCode != Result.Success)
+            if (data.ResultCode != Result.Success && data.ResultCode != Result.LobbyMemberUpdateOnly)
             {
                 string errorMsg = (data.ResultCode == Result.LobbyTooManyPlayers) ? "Lobby is full." : $"JoinLobby failed: {data.ResultCode}";
-                _completeOperation(onComplete, false, errorMsg);
+                if (isAutoRejoin)
+                {
+                    onComplete?.Invoke(false, errorMsg);
+                }
+                else
+                {
+                    _completeOperation(onComplete, false, errorMsg);
+                }
                 return;
             }
 
             _state.CurrentLobbyId = data.LobbyId;
             _state.CurrentJoinCode = joinCode;
             _state.IsLobbyOwner = false;
-            LobbyPreferences.SetInLobby(_state.LocalProductUserId, _state.CurrentLobbyId, isOwner: false);
+            LobbyPreferences.SetInLobby(
+                _state.LocalProductUserId,
+                _state.CurrentLobbyId,
+                isOwner: false,
+                inMatch: matchAlreadyStarted,
+                hostAddress,
+                joinCode);
             _state.CurrentHostAddress = hostAddress;
             _state.HasGameStarted = matchAlreadyStarted;
 
@@ -308,8 +419,9 @@ namespace EOS.Lobby
             _notifyLobbyJoined?.Invoke(hostAddress);
             _completeOperation(onComplete, true, hostAddress);
 
-            // If match has already started, immediately fire OnGameStarted so late-joiner connects to the active match
-            if (matchAlreadyStarted)
+            // If match has already started (manual join-in-progress / invite), fire OnGameStarted so client connects to the active match.
+            // Auto-rejoin invokes StartClient directly via LobbyRejoinService.
+            if (matchAlreadyStarted && !isAutoRejoin)
             {
                 _notifyGameStarted?.Invoke(hostAddress);
             }
@@ -385,6 +497,25 @@ namespace EOS.Lobby
             }
         }
 
+        // Leaves a specific lobby ID (used when clearing stale orphan/presence membership during rejoin).
+        public void LeaveLobbyById(string lobbyId, Action onComplete = null)
+        {
+            _state.LocalProductUserId = ConnectManager.Instance?.LocalProductUserId;
+            if (string.IsNullOrEmpty(lobbyId) || _state.LocalProductUserId == null || !_state.LocalProductUserId.IsValid())
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
+            var leaveOptions = new LeaveLobbyOptions { LobbyId = lobbyId, LocalUserId = _state.LocalProductUserId };
+            _lobbyHandle.LeaveLobby(leaveOptions, onComplete, HandleLeaveLobbyByIdCallback);
+        }
+
+        private static void HandleLeaveLobbyByIdCallback(LeaveLobbyCallbackInfo data)
+        {
+            (data.ClientData as Action)?.Invoke();
+        }
+
         public void KickMember(ProductUserId targetUserId, Action<bool, string> onComplete = null)
         {
             Assert.IsTrue(_state.IsLobbyOwner, "[LobbyManager] Only the lobby owner can kick members.");
@@ -396,17 +527,19 @@ namespace EOS.Lobby
                 LocalUserId = _state.LocalProductUserId,
                 TargetUserId = targetUserId
             };
-            _lobbyHandle.KickMember(kickOptions, onComplete, HandleKickMemberCallback);
+            _lobbyHandle.KickMember(kickOptions, (onComplete, targetUserId), HandleKickMemberCallback);
         }
 
         private void HandleKickMemberCallback(KickMemberCallbackInfo data)
         {
-            var onComplete = data.ClientData as Action<bool, string>;
+            var (onComplete, targetUserId) = ((Action<bool, string>, ProductUserId))data.ClientData;
             if (data.ResultCode != Result.Success)
             {
                 _completeOperation(onComplete, false, $"KickMember failed: {data.ResultCode}");
                 return;
             }
+
+            _attributes.RemoveAllowedRejoiner(targetUserId);
             _completeOperation(onComplete, true, null);
         }
 

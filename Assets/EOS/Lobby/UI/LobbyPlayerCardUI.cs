@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Assertions;
 using Epic.OnlineServices;
 
 namespace EOS.Lobby
@@ -26,11 +25,15 @@ namespace EOS.Lobby
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            Assert.IsNotNull(playerNameText, "[LobbyPlayerCardUI] PlayerNameText must not be null.");
-            Assert.IsNotNull(kickPlayerButton, "[LobbyPlayerCardUI] kickPlayerButton must not be null.");
-            Assert.IsNotNull(addFriendButton, "[LobbyPlayerCardUI] addFriendButton must not be null.");
-            Assert.IsNotNull(playerAvatarImage, "[LobbyPlayerCardUI] PlayerAvatarImage must not be null.");
-            Assert.IsNotNull(readyIndicator, "[LobbyPlayerCardUI] readyIndicator must not be null.");
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
+            if (playerNameText == null) Debug.LogWarning("[LobbyPlayerCardUI] PlayerNameText must not be null.", this);
+            if (kickPlayerButton == null) Debug.LogWarning("[LobbyPlayerCardUI] kickPlayerButton must not be null.", this);
+            if (playerAvatarImage == null) Debug.LogWarning("[LobbyPlayerCardUI] PlayerAvatarImage must not be null.", this);
+            if (readyIndicator == null) Debug.LogWarning("[LobbyPlayerCardUI] readyIndicator must not be null.", this);
         }
 #endif
 
@@ -49,20 +52,33 @@ namespace EOS.Lobby
             playerAvatarImage.sprite = avatarSprite;
             playerAvatarImage.enabled = (avatarSprite != null);
             SetReady(isReady);
-            kickPlayerButton.onClick.AddListener(OnKickPlayerClicked);
-            addFriendButton.onClick.AddListener(OnAddFriendPlayerClicked);
+
+            if (kickPlayerButton != null)
+            {
+                kickPlayerButton.onClick.RemoveListener(OnKickPlayerClicked);
+                kickPlayerButton.onClick.AddListener(OnKickPlayerClicked);
+            }
+
+            if (addFriendButton != null)
+            {
+                addFriendButton.onClick.RemoveListener(OnAddFriendPlayerClicked);
+                addFriendButton.onClick.AddListener(OnAddFriendPlayerClicked);
+            }
+
             SetKickButtonActive(canKick);
             SetAddFriendButtonActive(canAddFriend);
         }
 
         public void SetKickButtonActive(bool active)
         {
+            if (kickPlayerButton == null) return;
             kickPlayerButton.gameObject.SetActive(active);
             kickPlayerButton.interactable = active;
         }
 
         public void SetAddFriendButtonActive(bool active)
         {
+            if (addFriendButton == null) return;
             addFriendButton.gameObject.SetActive(active);
             addFriendButton.interactable = active;
         }

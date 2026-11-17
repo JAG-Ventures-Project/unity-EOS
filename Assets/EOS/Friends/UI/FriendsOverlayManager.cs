@@ -72,24 +72,29 @@ namespace EOS.Friends
 #if UNITY_EDITOR
         private void OnValidate()
         {
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
             FriendsManager.UseLobbySystem = useLobbySystem;
             TryGetComponent(out _rectTransform);
             TryGetComponent(out _canvasGroup);
-            Assert.IsNotNull(_rectTransform, "[FriendsOverlayManager] RectTransform missing.");
-            Assert.IsNotNull(_canvasGroup, "[FriendsOverlayManager] CanvasGroup missing.");
-            Assert.IsNotNull(localUserNameText, "[FriendsOverlayManager] localUserNameText reference is missing.");
-            Assert.IsNotNull(copyUserCodeButton, "[FriendsOverlayManager] copyUserCodeButton reference is missing.");
-            Assert.IsNotNull(copyUserCodeText, "[FriendsOverlayManager] copyUserCodeText reference is missing.");
-            Assert.IsNotNull(allFriendsTab, "[FriendsOverlayManager] allFriendsTab reference is missing.");
-            Assert.IsNotNull(platformTab, "[FriendsOverlayManager] platformTab reference is missing.");
-            Assert.IsNotNull(crossPlayTab, "[FriendsOverlayManager] crossPlayTab reference is missing.");
-            Assert.IsNotNull(notificationsTab, "[FriendsOverlayManager] notificationsTab reference is missing.");
-            Assert.IsNotNull(addFriendTab, "[FriendsOverlayManager] addFriendTab reference is missing.");
-            Assert.IsNotNull(blockedTab, "[FriendsOverlayManager] blockedTab reference is missing.");
-            Assert.IsNotNull(searchInputField, "[FriendsOverlayManager] searchInputField reference is missing.");
-            Assert.IsNotNull(searchButton, "[FriendsOverlayManager] searchButton reference is missing.");
-            Assert.IsNotNull(lazyListView, "[FriendsOverlayManager] lazyListView reference is missing.");
-            Assert.IsNotNull(actionsMenu, "[FriendsOverlayManager] actionsMenu reference is missing.");
+            if (_rectTransform == null) Debug.LogWarning("[FriendsOverlayManager] RectTransform missing.", this);
+            if (_canvasGroup == null) Debug.LogWarning("[FriendsOverlayManager] CanvasGroup missing.", this);
+            if (localUserNameText == null) Debug.LogWarning("[FriendsOverlayManager] localUserNameText reference is missing.", this);
+            if (copyUserCodeButton == null) Debug.LogWarning("[FriendsOverlayManager] copyUserCodeButton reference is missing.", this);
+            if (copyUserCodeText == null) Debug.LogWarning("[FriendsOverlayManager] copyUserCodeText reference is missing.", this);
+            if (allFriendsTab == null) Debug.LogWarning("[FriendsOverlayManager] allFriendsTab reference is missing.", this);
+            if (platformTab == null) Debug.LogWarning("[FriendsOverlayManager] platformTab reference is missing.", this);
+            if (crossPlayTab == null) Debug.LogWarning("[FriendsOverlayManager] crossPlayTab reference is missing.", this);
+            if (notificationsTab == null) Debug.LogWarning("[FriendsOverlayManager] notificationsTab reference is missing.", this);
+            if (addFriendTab == null) Debug.LogWarning("[FriendsOverlayManager] addFriendTab reference is missing.", this);
+            if (blockedTab == null) Debug.LogWarning("[FriendsOverlayManager] blockedTab reference is missing.", this);
+            if (searchInputField == null) Debug.LogWarning("[FriendsOverlayManager] searchInputField reference is missing.", this);
+            if (searchButton == null) Debug.LogWarning("[FriendsOverlayManager] searchButton reference is missing.", this);
+            if (lazyListView == null) Debug.LogWarning("[FriendsOverlayManager] lazyListView reference is missing.", this);
+            if (actionsMenu == null) Debug.LogWarning("[FriendsOverlayManager] actionsMenu reference is missing.", this);
         }
 #endif
 
