@@ -21,7 +21,7 @@ namespace EOS.Lobby
         private const float InitialProbeDelaySeconds = 1.5f;
         private const float ProbeIntervalSeconds = 3.0f;
         private const float OfflineCheckIntervalSeconds = 1.0f;
-        private const int MaxConsecutiveMirrorFailures = 5;
+        private const int MaxConsecutiveMirrorFailures = 2;
 
         private readonly LobbySessionState _state;
         private readonly LobbySessionService _sessions;
@@ -238,26 +238,41 @@ namespace EOS.Lobby
                 hostAddress = _state.PendingRejoinHostAddress;
             }
 
+            if (!LobbySessionState.IsHostInLobby(detailsHandle, hostAddress))
+            {
+                detailsHandle.Release();
+                string staleLobbyId = _state.PendingRejoinLobbyId;
+                FinishAutoRejoin(clearPreferences: true, leaveLobbyIfConnected: true, "Host is no longer in the match.");
+                if (!_state.IsInLobby && !string.IsNullOrEmpty(staleLobbyId))
+                {
+                    _sessions.LeaveLobbyById(staleLobbyId);
+                }
+                return;
+            }
+
             ProductUserId localPuid = _state.LocalProductUserId ?? ConnectManager.Instance?.LocalProductUserId;
             bool isStillMember = LobbySessionState.IsUserMemberOfLobby(detailsHandle, localPuid);
 
             if (!matchStarted)
             {
-                detailsHandle.Release();
                 if (isStillMember && _state.IsInLobby)
                 {
+                    detailsHandle.Release();
                     _state.HasGameStarted = false;
                     LobbyPreferences.SetInLobby(localPuid, _state.PendingRejoinLobbyId, isOwner: false, inMatch: false, hostAddress, joinCode);
                     FinishAutoRejoin(clearPreferences: false, leaveLobbyIfConnected: false, "Match has returned to the lobby.");
                 }
+                else if (isStillMember && !_state.IsInLobby)
+                {
+                    detailsHandle.Release();
+                    _isProbing = true;
+                    _sessions.LeaveLobbyById(_state.PendingRejoinLobbyId, HandleStalePresenceLeaveComplete);
+                }
                 else
                 {
-                    string staleLobbyId = _state.PendingRejoinLobbyId;
-                    FinishAutoRejoin(clearPreferences: true, leaveLobbyIfConnected: true, "Match has already ended.");
-                    if (isStillMember && !string.IsNullOrEmpty(staleLobbyId))
-                    {
-                        _sessions.LeaveLobbyById(staleLobbyId);
-                    }
+                    // Rejoin the open lobby without entering the match (detailsHandle is released by JoinFoundLobbyDetails).
+                    _isProbing = true;
+                    _sessions.JoinFoundLobbyDetails(detailsHandle, joinCode, isAutoRejoin: true, HandleReturnToLobbyJoinResult);
                 }
                 return;
             }
@@ -327,6 +342,25 @@ namespace EOS.Lobby
                 ? hostAddressOrError
                 : _state.PendingRejoinHostAddress;
             ConnectMirrorClient(hostAddress);
+        }
+
+        private void HandleReturnToLobbyJoinResult(bool success, string hostAddressOrError)
+        {
+            _isProbing = false;
+
+            if (!_state.IsAutoRejoining)
+            {
+                return;
+            }
+
+            if (success)
+            {
+                FinishAutoRejoin(clearPreferences: false, leaveLobbyIfConnected: false, "Rejoined the lobby.");
+            }
+            else
+            {
+                FinishAutoRejoin(clearPreferences: true, leaveLobbyIfConnected: false, hostAddressOrError);
+            }
         }
 
         private void HandleStalePresenceLeaveComplete()

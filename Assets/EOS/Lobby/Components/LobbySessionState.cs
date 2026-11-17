@@ -196,6 +196,24 @@ namespace EOS.Lobby
             }
             return false;
         }
+
+        // AI implementation: Verifies the original match host is still both the lobby owner and an active member.
+        public static bool IsHostInLobby(LobbyDetails detailsHandle, string hostAddress)
+        {
+            if (detailsHandle == null || string.IsNullOrEmpty(hostAddress)) return false;
+
+            ProductUserId hostPuid = ProductUserId.FromString(hostAddress);
+            if (hostPuid == null || !hostPuid.IsValid()) return false;
+
+            if (detailsHandle.CopyInfo(new LobbyDetailsCopyInfoOptions(), out LobbyDetailsInfo info) != Result.Success ||
+                info == null ||
+                info.LobbyOwnerUserId != hostPuid)
+            {
+                return false;
+            }
+
+            return IsUserMemberOfLobby(detailsHandle, hostPuid);
+        }
     }
 }
 

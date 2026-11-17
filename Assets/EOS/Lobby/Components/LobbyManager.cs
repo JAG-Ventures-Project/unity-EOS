@@ -322,7 +322,24 @@ namespace EOS.Lobby
             _instance = null;
             _notifications.Dispose();
 
-            bool preserveRejoin = _state.AllowAutoRejoin && !_state.IsLobbyOwner && (_state.HasGameStarted || _state.IsAutoRejoining);
+            if (_state.IsLobbyOwner)
+            {
+                if (IsInLobby && _state.LocalProductUserId != null)
+                {
+                    _lobbyHandle.DestroyLobby(new DestroyLobbyOptions
+                    {
+                        LobbyId = _state.CurrentLobbyId,
+                        LocalUserId = _state.LocalProductUserId
+                    }, _state.LocalProductUserId, HandleDisposeDestroyLobbyCallback);
+                }
+                else
+                {
+                    LobbyPreferences.ClearInLobby(_state.LocalProductUserId);
+                }
+                return;
+            }
+
+            bool preserveRejoin = _state.AllowAutoRejoin && (_state.HasGameStarted || _state.IsAutoRejoining);
             if (preserveRejoin)
             {
                 if (IsInLobby && _state.LocalProductUserId != null)
@@ -341,6 +358,14 @@ namespace EOS.Lobby
             if (IsInLobby)
             {
                 LeaveLobby();
+            }
+        }
+
+        private static void HandleDisposeDestroyLobbyCallback(DestroyLobbyCallbackInfo data)
+        {
+            if (data.ResultCode == Result.Success && data.ClientData is ProductUserId puid)
+            {
+                LobbyPreferences.ClearInLobby(puid);
             }
         }
     }
