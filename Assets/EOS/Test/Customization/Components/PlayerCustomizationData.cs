@@ -1,16 +1,37 @@
-﻿using System;
+using System;
+using EOS.Core;
 using UnityEngine;
 
 namespace EOS.Test.Customization
 {
     [Serializable]
-    public class PlayerCustomizationData
+    public class PlayerCustomizationData : IMergeableCloudData<PlayerCustomizationData>
     {
         public const string CloudFileName = "customization.json";
 
         public Color color = Color.white;
         public bool hasPet = true;
         public Color petColor = Color.white;
+
+        public bool IsSimilarTo(PlayerCustomizationData other)
+        {
+            return other != null &&
+                   color == other.color &&
+                   hasPet == other.hasPet &&
+                   petColor == other.petColor;
+        }
+
+        public void MergeFromServer(PlayerCustomizationData serverData)
+        {
+            if (serverData == null)
+            {
+                return;
+            }
+
+            color = serverData.color;
+            hasPet = serverData.hasPet;
+            petColor = serverData.petColor;
+        }
 
         public static Vector3 ColorToVector3(Color c)
         {

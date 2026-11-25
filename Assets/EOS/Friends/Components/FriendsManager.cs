@@ -666,6 +666,7 @@ namespace EOS.Friends
             _signalChannel?.Stop();
             _platformProvider?.Shutdown();
             _platformProvider = null;
+            _friendsStore.Reset();
             _presenceService.Clear();
             _inviteHandler.Clear();
             _allFriends.Clear();

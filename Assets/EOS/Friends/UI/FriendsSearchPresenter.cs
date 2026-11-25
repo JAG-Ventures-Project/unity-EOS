@@ -13,92 +13,76 @@ namespace EOS.Friends
     {
         private readonly TMP_InputField _searchInputField;
         private readonly Button _searchButton;
-        private readonly LazyFriendsListView _listView;
-        private readonly Func<IFriendsService> _getFriendsService;
-        private readonly Func<ILobbyInviteService> _getInviteService;
-        private readonly Func<FriendsTabType> _getCurrentTab;
-        private readonly Action _hideActionsMenu;
+        private readonly FriendsListController _listView;
+        private readonly IFriendsService _friendsService;
+        private readonly ILobbyInviteService _inviteService;
+        private readonly Action _onBeforeSearch;
 
         private readonly List<FriendModel> _filteredFriends = new();
+        private FriendsTabType _currentTab = FriendsTabType.Friends;
+        private FriendsFilterType _currentFilter = FriendsFilterType.Platform;
 
         public FriendsSearchPresenter(
             TMP_InputField searchInputField,
             Button searchButton,
-            LazyFriendsListView listView,
-            Func<IFriendsService> getFriendsService,
-            Func<ILobbyInviteService> getInviteService,
-            Func<FriendsTabType> getCurrentTab,
-            Action hideActionsMenu)
+            FriendsListController listView,
+            IFriendsService friendsService,
+            ILobbyInviteService inviteService,
+            Action onBeforeSearch)
         {
             _searchInputField = searchInputField;
             _searchButton = searchButton;
             _listView = listView;
-            _getFriendsService = getFriendsService;
-            _getInviteService = getInviteService;
-            _getCurrentTab = getCurrentTab;
-            _hideActionsMenu = hideActionsMenu;
+            _friendsService = friendsService;
+            _inviteService = inviteService;
+            _onBeforeSearch = onBeforeSearch;
 
-            _searchButton?.onClick.AddListener(HandleSearchButtonClicked);
-            _searchInputField?.onValueChanged.AddListener(HandleSearchInputChanged);
-            _searchInputField?.onSubmit.AddListener(HandleSearchInputSubmitted);
+            _searchButton.onClick.AddListener(HandleSearchButtonClicked);
+            _searchInputField.onSubmit.AddListener(HandleSearchInputSubmitted);
         }
 
         public void OnTabSwitched(FriendsTabType tab)
         {
-            if (_searchInputField == null) return;
-
-            _searchInputField.text = string.Empty;
-            if (_searchInputField.placeholder is TMP_Text placeholder)
+            _currentTab = tab;
+            if (tab == FriendsTabType.AddFriend)
             {
-                placeholder.text = tab == FriendsTabType.AddFriend
-                    ? "Enter user code or account ID..."
-                    : "Search...";
+                _searchInputField.text = string.Empty;
             }
         }
 
-        public void PopulateTab(FriendsTabType tab)
+        public void PopulateTab(FriendsTabType tab, FriendsFilterType filter)
         {
-            IFriendsService friendsService = _getFriendsService?.Invoke();
-            if (friendsService == null || _listView == null) return;
-
-            string query = _searchInputField != null ? _searchInputField.text.Trim() : string.Empty;
+            _currentTab = tab;
+            _currentFilter = filter;
 
             switch (tab)
             {
-                case FriendsTabType.AllFriends:
-                    FilterAndDisplay(friendsService.AllFriends, query, null);
-                    break;
-
-                case FriendsTabType.Platform:
-                    FilterAndDisplay(friendsService.AllFriends, query, FriendRelationStatus.Platform);
-                    break;
-
-                case FriendsTabType.CrossPlay:
-                    FilterAndDisplay(friendsService.AllFriends, query, FriendRelationStatus.CrossPlay);
+                case FriendsTabType.Friends:
+                    FriendRelationStatus requiredStatus = filter == FriendsFilterType.Platform
+                        ? FriendRelationStatus.Platform
+                        : FriendRelationStatus.CrossPlay;
+                    FilterByStatus(_friendsService.AllFriends, requiredStatus);
                     break;
 
                 case FriendsTabType.Notifications:
-                    DisplayNotifications(friendsService);
+                    _listView.SetNotifications(_friendsService.IncomingRequests, _inviteService.PendingInvites);
                     break;
 
                 case FriendsTabType.Blocked:
-                    FilterAndDisplay(friendsService.BlockedPlayers, query, null);
+                    _listView.SetFriends(_friendsService.BlockedPlayers, FriendsTabType.Blocked);
                     break;
 
                 case FriendsTabType.AddFriend:
+                    string query = _searchInputField.text.Trim();
                     if (!string.IsNullOrEmpty(query))
-                    {
                         ExecuteAddFriendLookup(query);
-                    }
                     else
-                    {
                         _listView.Clear();
-                    }
                     break;
             }
         }
 
-        private void FilterAndDisplay(IReadOnlyList<FriendModel> source, string query, FriendRelationStatus? requiredStatus)
+        private void FilterByStatus(IReadOnlyList<FriendModel> source, FriendRelationStatus requiredStatus)
         {
             _filteredFriends.Clear();
             if (source != null)
@@ -106,92 +90,58 @@ namespace EOS.Friends
                 for (int i = 0; i < source.Count; i++)
                 {
                     FriendModel f = source[i];
-                    if (requiredStatus.HasValue && f.Status != requiredStatus.Value) continue;
-                    if (MatchesQuery(f, query))
-                    {
-                        _filteredFriends.Add(f);
-                    }
+                        if (f.Status == requiredStatus)
+                        {
+                            _filteredFriends.Add(f);
+                        }
                 }
             }
 
-            _listView.SetFriends(_filteredFriends);
-        }
-
-        private void DisplayNotifications(IFriendsService friendsService)
-        {
-            IReadOnlyList<FriendModel> requests = friendsService?.IncomingRequests;
-            IReadOnlyList<LobbyInviteModel> invites = _getInviteService?.Invoke()?.PendingInvites;
-            _listView.SetNotifications(requests, invites);
-        }
-
-        private static bool MatchesQuery(FriendModel model, string query)
-        {
-            if (string.IsNullOrEmpty(query)) return true;
-            if (!string.IsNullOrEmpty(model.DisplayName) &&
-                model.DisplayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (!string.IsNullOrEmpty(model.ProductUserId) &&
-                model.ProductUserId.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (!string.IsNullOrEmpty(model.PlatformUserId) &&
-                model.PlatformUserId.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            return false;
+            _listView.SetFriends(_filteredFriends, FriendsTabType.Friends);
         }
 
         private void ExecuteAddFriendLookup(string query)
         {
-            IFriendsService friendsService = _getFriendsService?.Invoke();
-            if (friendsService == null || string.IsNullOrWhiteSpace(query))
+            if (string.IsNullOrWhiteSpace(query))
             {
                 _listView.Clear();
                 return;
             }
 
             _listView.Clear();
-            friendsService.ResolvePlayer(query, HandlePlayerLookupResult);
+            _friendsService.ResolvePlayer(query, HandlePlayerLookupResult);
         }
 
         private void HandlePlayerLookupResult(PlayerLookupResult result)
         {
+            if (_currentTab != FriendsTabType.AddFriend)
+            {
+                return;
+            }
+
             _filteredFriends.Clear();
-            if (result.Found && result.Player != null)
+            if (result.Found && result.Player != null &&
+                result.Player.Status != FriendRelationStatus.CrossPlay &&
+                result.Player.Status != FriendRelationStatus.Platform &&
+                result.Player.Status != FriendRelationStatus.Blocked)
             {
                 _filteredFriends.Add(result.Player);
             }
-            _listView.SetFriends(_filteredFriends);
+            _listView.SetFriends(_filteredFriends, FriendsTabType.AddFriend);
         }
 
         private void HandleSearchButtonClicked()
         {
-            _hideActionsMenu?.Invoke();
-            FriendsTabType currentTab = _getCurrentTab();
-            if (currentTab == FriendsTabType.AddFriend)
-            {
-                string q = _searchInputField != null ? _searchInputField.text.Trim() : string.Empty;
-                ExecuteAddFriendLookup(q);
-            }
-            else
-            {
-                PopulateTab(currentTab);
-            }
-        }
-
-        private void HandleSearchInputChanged(string value)
-        {
-            _hideActionsMenu?.Invoke();
-            FriendsTabType currentTab = _getCurrentTab();
-            if (currentTab != FriendsTabType.AddFriend)
-            {
-                PopulateTab(currentTab);
-            }
+            _onBeforeSearch?.Invoke();
+            ExecuteAddFriendLookup(_searchInputField.text.Trim());
         }
 
         private void HandleSearchInputSubmitted(string value) => HandleSearchButtonClicked();
 
         public void Dispose()
         {
-            _searchButton?.onClick.RemoveListener(HandleSearchButtonClicked);
-            _searchInputField?.onValueChanged.RemoveListener(HandleSearchInputChanged);
-            _searchInputField?.onSubmit.RemoveListener(HandleSearchInputSubmitted);
+            _searchButton.onClick.RemoveListener(HandleSearchButtonClicked);
+            _searchInputField.onSubmit.RemoveListener(HandleSearchInputSubmitted);
         }
     }
 }
-

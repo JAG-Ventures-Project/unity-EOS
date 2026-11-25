@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Auth;
 using EOS.Core;
 using System.Collections.Generic;
@@ -38,19 +38,20 @@ namespace EOS.Friends
         {
             if (success && data != null)
             {
+                data.EnsureInitialized();
                 _data = data;
             }
-            else
+            else if (error == PlayerDataStorageManager.NotFoundError)
             {
-                // File does not exist yet on cloud or failed; initialize default data
+                // File does not exist yet on cloud; initialize default data
                 _data = new CrossPlayFriendsData();
             }
 
-            IsLoaded = true;
+            IsLoaded = _storage.IsFileLoaded(FriendsDataFileName);
 
             Action<bool> callback = _pendingLoadCallback;
             _pendingLoadCallback = null;
-            callback?.Invoke(success || error == "NotFound");
+            callback?.Invoke(success || error == PlayerDataStorageManager.NotFoundError);
         }
 
         public void Save(Action<bool, string> onComplete = null)

@@ -2,6 +2,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using EOS.Core;
 using EOS.Auth;
 using EOS.Lobby;
@@ -23,6 +24,7 @@ namespace EOS.Editor
         public const string LobbyManagerPrefabPath = "Assets/EOS/Lobby/Prefabs/LobbyManager.prefab";
         public const string LobbyCanvasPrefabPath = "Assets/EOS/Lobby/Prefabs/Lobby Menu Canvas.prefab";
         public const string FriendsCanvasPrefabPath = "Assets/EOS/Friends/Prefabs/Friends Overlay Canvas.prefab";
+        public const string FriendsOpenButtonCanvasPrefabPath = "Assets/EOS/Friends/Prefabs/OpenOverlayButtonCanvas.prefab";
         public const string NotificationManagerPrefabPath = "Assets/EOS/Notification/Prefabs/NotificationManager.prefab";
         public const string AnalyticsManagerPrefabPath = "Assets/EOS/Test/Analytics/Prefabs/AnalyticsManager.prefab";
         public const string AnalyticsCanvasPrefabPath = "Assets/EOS/Test/Analytics/Prefabs/Analytics Canvas.prefab";
@@ -143,26 +145,32 @@ namespace EOS.Editor
             }
         }
 
-        [MenuItem("EOS/Add System to Scene/5. Friends (Friends Overlay Canvas)", false, 5)]
-        public static GameObject AddFriendsSystem()
+        [MenuItem("EOS/Add System to Scene/5. Friends (Open Button & Overlay Canvas)", false, 5)]
+        public static void AddFriendsSystem()
         {
             if (HasFriendsInScene)
             {
                 if (!EditorUtility.DisplayDialog("System Already Present", "Friends Overlay is already present in this scene. Do you want to add another instance anyway?", "Add Duplicate", "Cancel"))
                 {
                     Selection.activeGameObject = Object.FindFirstObjectByType<FriendsOverlayManager>().gameObject;
-                    return null;
+                    return;
                 }
             }
 
-            GameObject instance = InstantiatePrefabToScene(FriendsCanvasPrefabPath, "Add Friends Overlay Canvas");
+            Undo.IncrementCurrentGroup();
+            Undo.SetCurrentGroupName("Add EOS Friends System");
+            int group = Undo.GetCurrentGroup();
+
+            GameObject overlay = InstantiateFriendsSystem();
             EnsureEventSystem();
 
-            if (instance != null)
+                Undo.CollapseUndoOperations(group);
+
+            if (overlay != null)
             {
-                Debug.Log("[EOS Setup] Successfully added Friends (Friends Overlay Canvas) to active scene.");
+                Selection.activeGameObject = overlay;
+                Debug.Log("[EOS Setup] Successfully added Friends (OpenOverlayButtonCanvas & Friends Overlay Canvas) to active scene.");
             }
-            return instance;
         }
 
         [MenuItem("EOS/Add System to Scene/6. Notification (NotificationManager)", false, 6)]
@@ -232,7 +240,7 @@ namespace EOS.Editor
                 InstantiatePrefabToScene(LobbyManagerPrefabPath, "Add Lobby Manager");
                 InstantiatePrefabToScene(LobbyCanvasPrefabPath, "Add Lobby Canvas");
             }
-            if (!HasFriendsInScene) InstantiatePrefabToScene(FriendsCanvasPrefabPath, "Add Friends Overlay");
+            if (!HasFriendsInScene) InstantiateFriendsSystem();
             if (!HasNotificationInScene) InstantiatePrefabToScene(NotificationManagerPrefabPath, "Add Notification Manager");
             if (!HasAnalyticsInScene)
             {
@@ -301,6 +309,37 @@ namespace EOS.Editor
                 EditorSceneManager.MarkSceneDirty(instance.scene);
             }
             return instance;
+        }
+
+        private static GameObject InstantiateFriendsSystem()
+        {
+            GameObject openButtonCanvas = InstantiatePrefabToScene(FriendsOpenButtonCanvasPrefabPath, "Add OpenOverlayButtonCanvas");
+            GameObject overlayCanvas = InstantiatePrefabToScene(FriendsCanvasPrefabPath, "Add Friends Overlay Canvas");
+            WireFriendsOpenButton(openButtonCanvas, overlayCanvas);
+            return overlayCanvas != null ? overlayCanvas : openButtonCanvas;
+        }
+
+        private static void WireFriendsOpenButton(GameObject openButtonCanvas, GameObject overlayCanvas)
+        {
+            if (openButtonCanvas == null || overlayCanvas == null)
+            {
+                return;
+            }
+
+            FriendsOverlayManager overlayManager = overlayCanvas.GetComponentInChildren<FriendsOverlayManager>(true);
+            Button openButton = openButtonCanvas.GetComponentInChildren<Button>(true);
+            if (overlayManager == null || openButton == null)
+            {
+                return;
+            }
+
+            SerializedObject serializedManager = new SerializedObject(overlayManager);
+            SerializedProperty openButtonProp = serializedManager.FindProperty("openButton");
+            if (openButtonProp != null)
+            {
+                openButtonProp.objectReferenceValue = openButton;
+                serializedManager.ApplyModifiedProperties();
+            }
         }
 
         public static void EnsureEventSystem()
@@ -400,7 +439,7 @@ namespace EOS.Editor
             DrawSystemCard(
                 title: "5. Friends System",
                 description: "Cross-platform cloud friends, native platform sync, invites, and overlay UI.",
-                prefabs: "Friends Overlay Canvas.prefab",
+                prefabs: "OpenOverlayButtonCanvas.prefab, Friends Overlay Canvas.prefab",
                 isInScene: EOSSystemSetup.HasFriendsInScene,
                 onAdd: () => EOSSystemSetup.AddFriendsSystem(),
                 onSelect: () => SelectObjectInScene<FriendsOverlayManager>()

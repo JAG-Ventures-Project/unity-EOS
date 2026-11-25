@@ -3,7 +3,6 @@ using EOS.Auth;
 using EOS.Lobby;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
@@ -11,43 +10,47 @@ namespace EOS.Friends
 {
     /// <summary>
     /// Master UI coordinator for the FriendsOverlay social hierarchy.
-    /// Delegates header display, panel/tab view transitions, and search/filtering to focused presenters.
+    /// Delegates header display, panel/tab view transitions, search/filtering, and list selection.
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
-    [RequireComponent(typeof(CanvasGroup))]
     public class FriendsOverlayManager : MonoBehaviour, IPointerDownHandler
     {
         [Header("Header Elements")]
         [SerializeField] private Image localAvatarImage;
-        [SerializeField] private Image localAvatarFrame;
         [SerializeField] private TMP_Text localUserNameText;
         [SerializeField] private Button copyUserCodeButton;
         [SerializeField] private TMP_Text copyUserCodeText;
 
         [Header("Navigation Tabs")]
-        [SerializeField] private Button allFriendsTab;
-        [SerializeField] private Button platformTab;
-        [SerializeField] private Button crossPlayTab;
-        [SerializeField] private Button notificationsTab;
-        [SerializeField] private Button addFriendTab;
-        [SerializeField] private Button blockedTab;
+        [SerializeField] private Toggle friendsTab;
+        [SerializeField] private Toggle notificationsTab;
+        [SerializeField] private Toggle addFriendTab;
+        [SerializeField] private Toggle blockedTab;
 
-        [Header("Tab Styling")]
-        [SerializeField] private Color tabActiveColor = new(0.2f, 0.6f, 1f, 1f);
-        [SerializeField] private Color tabInactiveColor = new(0.25f, 0.25f, 0.25f, 1f);
+        [Header("Friends Sub-Menu")]
+        [SerializeField] private GameObject friendsSubMenuContainer;
+        [SerializeField] private Toggle platformSubTab;
+        [SerializeField] private Toggle crossPlaySubTab;
+
+        [Header("Notification Badge")]
+        [SerializeField] private GameObject notificationBadge;
+        [SerializeField] private TMP_Text notificationBadgeText;
 
         [Header("Search Elements")]
+        [SerializeField] private GameObject searchContainer;
         [SerializeField] private TMP_InputField searchInputField;
         [SerializeField] private Button searchButton;
 
-        [Header("Player List & Actions Menu")]
-        [SerializeField] private LazyFriendsListView lazyListView;
-        [SerializeField] private FriendActionsMenuUI actionsMenu;
+        [Header("Layout")]
+        [SerializeField] private VerticalLayoutGroup bottomSectionLayoutGroup;
 
         [Header("Overlay Visibility & Slide Animation")]
         [SerializeField] private Button openButton;
         [SerializeField] private Button closeButton;
+        [SerializeField] private RectTransform overlayMenu;
+        [SerializeField] private CanvasGroup canvasGroup;
         [SerializeField] private float slideDuration = 0.25f;
+        [SerializeField] private bool slideLeft = false;
         [SerializeField] private bool startClosed = true;
 
         [Header("Networking Mode")]
@@ -55,8 +58,7 @@ namespace EOS.Friends
 
         public static FriendsOverlayManager Instance { get; private set; }
 
-        private RectTransform _rectTransform;
-        private CanvasGroup _canvasGroup;
+        private FriendsListController _friendsListView;
 
         private IFriendsService _friendsService;
         private ILobbyInviteService _lobbyInviteService;
@@ -65,9 +67,15 @@ namespace EOS.Friends
         private FriendsOverlayHeaderView _headerView;
         private FriendsOverlayPanelView _panelView;
         private FriendsSearchPresenter _searchPresenter;
+        private FriendActionExecutor _actionExecutor;
 
-        private FriendsTabType _currentTab = FriendsTabType.AllFriends;
+        private FriendsTabType _currentTab = FriendsTabType.Friends;
+        private FriendsFilterType _currentFriendsFilter = FriendsFilterType.Platform;
         private Coroutine _pingCoroutine;
+        private readonly WaitForSeconds _pingWait = new(10f);
+        private RectTransform _rectTransform;
+        private Vector2 _lastCanvasSize;
+        private bool _isHandlingDimensionChange;
 
 #if UNITY_EDITOR
         private void OnValidate()
@@ -78,49 +86,52 @@ namespace EOS.Friends
             }
 
             FriendsManager.UseLobbySystem = useLobbySystem;
-            TryGetComponent(out _rectTransform);
-            TryGetComponent(out _canvasGroup);
-            if (_rectTransform == null) Debug.LogWarning("[FriendsOverlayManager] RectTransform missing.", this);
-            if (_canvasGroup == null) Debug.LogWarning("[FriendsOverlayManager] CanvasGroup missing.", this);
+            _friendsListView = GetComponentInChildren<FriendsListController>(true);
+            if (overlayMenu == null) Debug.LogWarning("[FriendsOverlayManager] overlayMenu reference is missing.", this);
+            if (canvasGroup == null) Debug.LogWarning("[FriendsOverlayManager] canvasGroup reference is missing.", this);
             if (localUserNameText == null) Debug.LogWarning("[FriendsOverlayManager] localUserNameText reference is missing.", this);
             if (copyUserCodeButton == null) Debug.LogWarning("[FriendsOverlayManager] copyUserCodeButton reference is missing.", this);
             if (copyUserCodeText == null) Debug.LogWarning("[FriendsOverlayManager] copyUserCodeText reference is missing.", this);
-            if (allFriendsTab == null) Debug.LogWarning("[FriendsOverlayManager] allFriendsTab reference is missing.", this);
-            if (platformTab == null) Debug.LogWarning("[FriendsOverlayManager] platformTab reference is missing.", this);
-            if (crossPlayTab == null) Debug.LogWarning("[FriendsOverlayManager] crossPlayTab reference is missing.", this);
+            if (friendsTab == null) Debug.LogWarning("[FriendsOverlayManager] friendsTab reference is missing.", this);
             if (notificationsTab == null) Debug.LogWarning("[FriendsOverlayManager] notificationsTab reference is missing.", this);
             if (addFriendTab == null) Debug.LogWarning("[FriendsOverlayManager] addFriendTab reference is missing.", this);
             if (blockedTab == null) Debug.LogWarning("[FriendsOverlayManager] blockedTab reference is missing.", this);
+            if (friendsSubMenuContainer == null) Debug.LogWarning("[FriendsOverlayManager] friendsSubMenuContainer reference is missing.", this);
+            if (platformSubTab == null) Debug.LogWarning("[FriendsOverlayManager] platformSubTab reference is missing.", this);
+            if (crossPlaySubTab == null) Debug.LogWarning("[FriendsOverlayManager] crossPlaySubTab reference is missing.", this);
+            if (notificationBadge == null) Debug.LogWarning("[FriendsOverlayManager] notificationBadge reference is missing.", this);
+            if (notificationBadgeText == null) Debug.LogWarning("[FriendsOverlayManager] notificationBadgeText reference is missing.", this);
+            if (searchContainer == null) Debug.LogWarning("[FriendsOverlayManager] searchContainer reference is missing.", this);
             if (searchInputField == null) Debug.LogWarning("[FriendsOverlayManager] searchInputField reference is missing.", this);
             if (searchButton == null) Debug.LogWarning("[FriendsOverlayManager] searchButton reference is missing.", this);
-            if (lazyListView == null) Debug.LogWarning("[FriendsOverlayManager] lazyListView reference is missing.", this);
-            if (actionsMenu == null) Debug.LogWarning("[FriendsOverlayManager] actionsMenu reference is missing.", this);
+            if (bottomSectionLayoutGroup == null) Debug.LogWarning("[FriendsOverlayManager] bottomSectionLayoutGroup reference is missing.", this);
+            if (_friendsListView == null) Debug.LogWarning("[FriendsOverlayManager] FriendsListController missing in children.", this);
+
+            friendsSubMenuContainer.SetActive(false);
+            searchContainer.SetActive(false);
         }
 #endif
 
         private void Awake()
         {
             FriendsManager.UseLobbySystem = useLobbySystem;
-            Canvas rootCanvas = GetComponentInParent<Canvas>();
-            GameObject rootObject = rootCanvas != null ? rootCanvas.gameObject : gameObject;
 
             if (Instance != null && Instance != this)
             {
-                DestroyImmediate(rootObject);
+                DestroyImmediate(this);
                 return;
             }
             Instance = this;
-            rootObject.transform.SetParent(null);
-            DontDestroyOnLoad(rootObject);
+            DontDestroyOnLoad(this);
 
             LogoutManager.OnLogoutInitiated += HandleLoggedOut;
             SessionAuthCoordinator.OnLoggedOut += HandleLoggedOut;
 
-            _rectTransform = GetComponent<RectTransform>();
-            _canvasGroup = GetComponent<CanvasGroup>();
-            if (_canvasGroup == null) _canvasGroup = gameObject.AddComponent<CanvasGroup>();
-
-            EnsureServices();
+            _identity ??= new LocalPlayerIdentity();
+            _friendsService = FriendsManager.Instance;
+            _lobbyInviteService = FriendsManager.Instance.LobbyInvites;
+            _actionExecutor ??= new FriendActionExecutor();
+            _actionExecutor.Initialize(_friendsService, _lobbyInviteService);
 
             _headerView = new FriendsOverlayHeaderView(
                 this,
@@ -129,64 +140,92 @@ namespace EOS.Friends
                 copyUserCodeButton,
                 copyUserCodeText,
                 _identity,
-                () => actionsMenu?.Hide());
+                HandleClearSelection);
 
             _panelView = new FriendsOverlayPanelView(
                 this,
-                _rectTransform,
-                _canvasGroup,
+                overlayMenu,
+                canvasGroup,
                 openButton,
                 closeButton,
-                allFriendsTab,
-                platformTab,
-                crossPlayTab,
+                friendsTab,
                 notificationsTab,
                 addFriendTab,
                 blockedTab,
-                tabActiveColor,
-                tabInactiveColor,
+                friendsSubMenuContainer,
+                platformSubTab,
+                crossPlaySubTab,
+                searchContainer,
+                notificationBadge,
+                notificationBadgeText,
+                bottomSectionLayoutGroup,
                 slideDuration,
+                slideLeft,
                 startClosed);
 
             _panelView.OnTabClicked += SelectTab;
+            _panelView.OnFilterClicked += SelectFriendsFilter;
             _panelView.OnOpenClicked += OpenOverlay;
             _panelView.OnCloseClicked += CloseOverlay;
 
             _searchPresenter = new FriendsSearchPresenter(
                 searchInputField,
                 searchButton,
-                lazyListView,
-                () => _friendsService,
-                () => _lobbyInviteService,
-                () => _currentTab,
-                () => actionsMenu?.Hide());
+                _friendsListView,
+                _friendsService,
+                _lobbyInviteService,
+                HandleClearSelection);
 
-            lazyListView.OnFriendClicked += HandleCardClicked;
-            lazyListView.OnInviteClicked += HandleInviteCardClicked;
-            lazyListView.OnScrolled += HandleListScrolled;
-            lazyListView.OnBackgroundClicked += HandleBackgroundClicked;
-        }
+            _friendsListView.Initialize(_actionExecutor);
 
-        private void EnsureServices()
-        {
-            _identity ??= new LocalPlayerIdentity();
-            _friendsService = FriendsManager.Instance;
-            _lobbyInviteService = FriendsManager.Instance?.LobbyInvites;
-            actionsMenu.Initialize(_friendsService, _lobbyInviteService);
+            _rectTransform = (RectTransform)transform;
+            _lastCanvasSize = _rectTransform.rect.size;
         }
 
         private void Start()
         {
-            actionsMenu.OnActionExecuted += HandleActionExecuted;
-
             _headerView.RefreshHeader();
-            SelectTab(FriendsTabType.AllFriends);
+            ApplyTabSelection(FriendsTabType.Friends);
+            UpdateNotificationBadge();
+            _friendsService.RefreshFriends(HandleRefreshCompleted);
+            FriendsManager.Instance.PingAllFriends();
         }
 
         private void OnEnable()
         {
             SubscribeServices();
-            RefreshSocialData();
+        }
+
+        private void OnRectTransformDimensionsChange()
+        {
+            RefreshLayoutOnDimensionsChange();
+        }
+
+        private void RefreshLayoutOnDimensionsChange()
+        {
+            if (_panelView == null || _isHandlingDimensionChange || !gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            Vector2 currentSize = _rectTransform.rect.size;
+            if (currentSize == _lastCanvasSize)
+            {
+                return;
+            }
+
+            _isHandlingDimensionChange = true;
+            try
+            {
+                _panelView.RefreshOverlayAnchors();
+                _panelView.UpdateTabContentLayout(_currentTab);
+
+                _lastCanvasSize = _rectTransform.rect.size;
+            }
+            finally
+            {
+                _isHandlingDimensionChange = false;
+            }
         }
 
         private void OnDisable()
@@ -198,41 +237,36 @@ namespace EOS.Friends
             }
 
             UnsubscribeServices();
-            actionsMenu.Hide();
+            _friendsListView.ClearSelection();
         }
 
         private void OnDestroy()
         {
+            if (Instance != this) return;
+            Instance = null;
+
             LogoutManager.OnLogoutInitiated -= HandleLoggedOut;
             SessionAuthCoordinator.OnLoggedOut -= HandleLoggedOut;
 
-            Instance = null;
-
             UnsubscribeServices();
-            lazyListView.OnFriendClicked -= HandleCardClicked;
-            lazyListView.OnInviteClicked -= HandleInviteCardClicked;
-            lazyListView.OnScrolled -= HandleListScrolled;
-            lazyListView.OnBackgroundClicked -= HandleBackgroundClicked;
-            actionsMenu.OnActionExecuted -= HandleActionExecuted;
 
-            _headerView?.Dispose();
-            _panelView?.Dispose();
-            _searchPresenter?.Dispose();
+            _panelView.OnTabClicked -= SelectTab;
+            _panelView.OnFilterClicked -= SelectFriendsFilter;
+            _panelView.OnOpenClicked -= OpenOverlay;
+            _panelView.OnCloseClicked -= CloseOverlay;
+
+            _headerView.Dispose();
+            _panelView.Dispose();
+            _searchPresenter.Dispose();
         }
 
         private void SubscribeServices()
         {
-            if (_friendsService != null)
-            {
-                _friendsService.OnFriendsListUpdated += HandleFriendsListUpdated;
-                _friendsService.OnFriendStatusChanged += HandleFriendStatusChanged;
-            }
-
-            if (_lobbyInviteService != null)
-            {
-                _lobbyInviteService.OnInviteReceived += HandleLobbyInviteReceived;
-                _lobbyInviteService.OnInviteRemoved += HandleLobbyInviteRemoved;
-            }
+            _actionExecutor.OnActionExecuted += HandleActionExecuted;
+            _friendsService.OnFriendsListUpdated += HandleFriendsListUpdated;
+            _friendsService.OnFriendStatusChanged += HandleFriendStatusChanged;
+            _lobbyInviteService.OnInviteReceived += HandleLobbyInviteReceived;
+            _lobbyInviteService.OnInviteRemoved += HandleLobbyInviteRemoved;
 
             if (useLobbySystem && LobbyManager.Instance != null)
             {
@@ -243,17 +277,12 @@ namespace EOS.Friends
 
         private void UnsubscribeServices()
         {
-            if (_friendsService != null)
-            {
-                _friendsService.OnFriendsListUpdated -= HandleFriendsListUpdated;
-                _friendsService.OnFriendStatusChanged -= HandleFriendStatusChanged;
-            }
+            _actionExecutor.OnActionExecuted -= HandleActionExecuted;
+            _friendsService.OnFriendsListUpdated -= HandleFriendsListUpdated;
+            _friendsService.OnFriendStatusChanged -= HandleFriendStatusChanged;
 
-            if (_lobbyInviteService != null)
-            {
-                _lobbyInviteService.OnInviteReceived -= HandleLobbyInviteReceived;
-                _lobbyInviteService.OnInviteRemoved -= HandleLobbyInviteRemoved;
-            }
+            _lobbyInviteService.OnInviteReceived -= HandleLobbyInviteReceived;
+            _lobbyInviteService.OnInviteRemoved -= HandleLobbyInviteRemoved;
 
             if (useLobbySystem && LobbyManager.Instance != null)
             {
@@ -263,24 +292,43 @@ namespace EOS.Friends
 
         public void SelectTab(FriendsTabType tab)
         {
+            if (_currentTab == tab)
+            {
+                return;
+            }
+
+            ApplyTabSelection(tab);
+        }
+
+        private void ApplyTabSelection(FriendsTabType tab)
+        {
             _currentTab = tab;
-            _panelView?.UpdateTabVisuals(tab);
-            actionsMenu?.Hide();
-            _searchPresenter?.OnTabSwitched(tab);
-            _searchPresenter?.PopulateTab(tab);
+            _friendsListView.ClearSelection();
+            _panelView.UpdateTabContentLayout(tab);
+            _panelView.UpdateTabVisuals(tab, _currentFriendsFilter);
+            _searchPresenter.OnTabSwitched(tab);
+            _searchPresenter.PopulateTab(tab, _currentFriendsFilter);
+        }
+
+        public void SelectFriendsFilter(FriendsFilterType filter)
+        {
+            _currentFriendsFilter = filter;
+            _friendsListView.ClearSelection();
+            _panelView.UpdateTabVisuals(_currentTab, _currentFriendsFilter);
+            _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
         }
 
         public void RefreshSocialData()
         {
-            _searchPresenter?.PopulateTab(_currentTab);
-            _friendsService?.RefreshFriends(HandleRefreshCompleted);
-            FriendsManager.Instance?.PingAllFriends();
+            _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
+            UpdateNotificationBadge();
+            _friendsService.RefreshFriends(HandleRefreshCompleted);
+            FriendsManager.Instance.PingAllFriends();
         }
 
         public void OpenOverlay()
         {
-            _panelView?.Open();
-            _headerView?.RefreshHeader();
+            _panelView.Open();
             RefreshSocialData();
 
             if (_pingCoroutine != null) StopCoroutine(_pingCoroutine);
@@ -289,18 +337,15 @@ namespace EOS.Friends
 
         public void CloseOverlay()
         {
-            if (_pingCoroutine != null)
-            {
-                StopCoroutine(_pingCoroutine);
-                _pingCoroutine = null;
-            }
+            StopCoroutine(_pingCoroutine);
+            _pingCoroutine = null;
 
-            _panelView?.Close(() => actionsMenu?.Hide());
+            _panelView.Close(HandleClearSelection);
         }
 
         public void ToggleOverlay()
         {
-            if (_panelView != null && _panelView.IsOpen)
+            if (_panelView.IsOpen)
             {
                 CloseOverlay();
             }
@@ -312,7 +357,7 @@ namespace EOS.Friends
 
         public void PersistForGameScene()
         {
-            actionsMenu?.Hide();
+            _friendsListView.ClearSelection();
 
             Canvas canvas = GetComponentInParent<Canvas>();
             GameObject rootObject = canvas != null ? canvas.gameObject : gameObject;
@@ -320,76 +365,57 @@ namespace EOS.Friends
             DontDestroyOnLoad(rootObject);
         }
 
-        public void OnPointerDown(PointerEventData eventData) => actionsMenu?.Hide();
+        public void OnPointerDown(PointerEventData eventData) => _friendsListView.ClearSelection();
+
+        private void UpdateNotificationBadge()
+        {
+            int count = _friendsService.IncomingRequests.Count + _lobbyInviteService.PendingInvites.Count;
+            _panelView.UpdateNotificationBadge(count);
+        }
 
         private IEnumerator PeriodicPingRoutine()
         {
-            var wait = new WaitForSeconds(10f);
-            while (_panelView != null && _panelView.IsOpen)
+            while (_panelView.IsOpen)
             {
-                yield return wait;
-                FriendsManager.Instance?.PingAllFriends();
+                yield return _pingWait;
+                FriendsManager.Instance.PingAllFriends();
             }
         }
 
-        private void HandleRefreshCompleted() => _searchPresenter?.PopulateTab(_currentTab);
+        private void HandleClearSelection() => _friendsListView.ClearSelection();
 
-        private void HandleFriendsListUpdated()
+        private void HandleRefreshCompleted() => RefreshBadgeAndVisibleList();
+        private void HandleFriendsListUpdated() => RefreshBadgeAndVisibleList();
+        private void HandleFriendStatusChanged(FriendModel model) => RefreshBadgeAndVisibleList();
+
+        private void RefreshBadgeAndVisibleList()
         {
-            _headerView?.RefreshHeader();
-            _searchPresenter?.PopulateTab(_currentTab);
+            UpdateNotificationBadge();
+            _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
         }
-
-        private void HandleFriendStatusChanged(FriendModel model) => _searchPresenter?.PopulateTab(_currentTab);
 
         private void HandleLobbyInviteReceived(LobbyInviteModel invite)
         {
+            UpdateNotificationBadge();
             if (_currentTab == FriendsTabType.Notifications)
             {
-                _searchPresenter?.PopulateTab(_currentTab);
+                _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
             }
         }
 
         private void HandleLobbyInviteRemoved(string inviteId)
         {
+            UpdateNotificationBadge();
             if (_currentTab == FriendsTabType.Notifications)
             {
-                _searchPresenter?.PopulateTab(_currentTab);
+                _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
             }
         }
 
-        private void HandleActionExecuted() => _searchPresenter?.PopulateTab(_currentTab);
-        private void HandleBackgroundClicked() => actionsMenu?.Hide();
-        private void HandleListScrolled() => actionsMenu?.Hide();
-
-        private void HandleCardClicked(FriendCardUI card, FriendModel model)
+        private void HandleActionExecuted()
         {
-            Assert.IsNotNull(actionsMenu, "[FriendsOverlayManager] actionsMenu is null.");
-            Assert.IsNotNull(card, "[FriendsOverlayManager] card is null.");
-
-            if (actionsMenu.IsOpen && actionsMenu.CurrentTargetFriend == model)
-            {
-                actionsMenu.Hide();
-                return;
-            }
-
-            actionsMenu.Hide();
-            actionsMenu.ShowForFriend(model, _currentTab, card.transform as RectTransform);
-        }
-
-        private void HandleInviteCardClicked(FriendCardUI card, LobbyInviteModel invite)
-        {
-            Assert.IsNotNull(actionsMenu, "[FriendsOverlayManager] actionsMenu is null.");
-            Assert.IsNotNull(card, "[FriendsOverlayManager] card is null.");
-
-            if (actionsMenu.IsOpen && actionsMenu.CurrentTargetInvite == invite)
-            {
-                actionsMenu.Hide();
-                return;
-            }
-
-            actionsMenu.Hide();
-            actionsMenu.ShowForInvite(invite, card.transform as RectTransform);
+            UpdateNotificationBadge();
+            _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
         }
 
         private void HandleGameStarted(string hostAddress)

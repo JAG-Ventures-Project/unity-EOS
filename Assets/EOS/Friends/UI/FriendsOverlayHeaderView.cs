@@ -22,6 +22,7 @@ namespace EOS.Friends
         private Action _beforeCopyAction;
         private Sprite _createdLocalAvatarSprite;
         private Coroutine _copyFeedbackCoroutine;
+        private readonly WaitForSecondsRealtime _copyFeedbackWait = new(1.5f);
 
         public FriendsOverlayHeaderView(
             MonoBehaviour coroutineHost,
@@ -50,10 +51,8 @@ namespace EOS.Friends
 
         public void RefreshHeader()
         {
-            if (_identity == null) return;
-
-            if (_localUserNameText != null) _localUserNameText.text = _identity.DisplayName;
-            if (_copyUserCodeText != null) _copyUserCodeText.text = _identity.UserCode;
+            _localUserNameText.text = _identity.DisplayName;
+            _copyUserCodeText.text = _identity.UserCode;
 
             UpdateLocalAvatar();
         }
@@ -73,7 +72,7 @@ namespace EOS.Friends
             else
             {
                 _localAvatarImage.sprite = null;
-                _localAvatarImage.color = new Color(0.85f, 0.85f, 0.85f, 1f);
+                _localAvatarImage.color = new Color(0.1843f, 0.1843f, 0.2039f, 1f);
             }
         }
 
@@ -85,21 +84,18 @@ namespace EOS.Friends
 
             GUIUtility.systemCopyBuffer = code;
 
-            if (_copyFeedbackCoroutine != null && _coroutineHost != null)
+            if (_copyFeedbackCoroutine != null)
             {
                 _coroutineHost.StopCoroutine(_copyFeedbackCoroutine);
             }
-            if (_coroutineHost != null)
-            {
-                _copyFeedbackCoroutine = _coroutineHost.StartCoroutine(ShowCopyFeedbackRoutine());
-            }
+            _copyFeedbackCoroutine = _coroutineHost.StartCoroutine(ShowCopyFeedbackRoutine());
         }
 
         private IEnumerator ShowCopyFeedbackRoutine()
         {
-            if (_copyUserCodeText != null) _copyUserCodeText.text = "Copied!";
-            yield return new WaitForSecondsRealtime(1.5f);
-            if (_copyUserCodeText != null && _identity != null) _copyUserCodeText.text = _identity.UserCode;
+            _copyUserCodeText.text = "Copied!";
+            yield return _copyFeedbackWait;
+            _copyUserCodeText.text = _identity.UserCode;
             _copyFeedbackCoroutine = null;
         }
 
@@ -114,7 +110,7 @@ namespace EOS.Friends
 
         public void Dispose()
         {
-            if (_copyFeedbackCoroutine != null && _coroutineHost != null)
+            if (_copyFeedbackCoroutine != null)
             {
                 _coroutineHost.StopCoroutine(_copyFeedbackCoroutine);
                 _copyFeedbackCoroutine = null;
