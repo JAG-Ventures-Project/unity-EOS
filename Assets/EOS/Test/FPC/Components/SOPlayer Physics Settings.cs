@@ -2,7 +2,7 @@
 
 namespace EOS.Test.FPC
 {
-    [CreateAssetMenu(fileName = "PlayerControllerProperties", menuName = "Player/Controller Properties")]
+    [CreateAssetMenu(fileName = "PlayerControllerProperties", menuName = "EOS/Player/Controller Properties")]
     public class SOPlayerPhysicsSettings : ScriptableObject
     {
         public float moveSpeed = 5f;

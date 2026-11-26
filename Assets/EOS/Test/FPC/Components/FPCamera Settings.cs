@@ -2,7 +2,7 @@
 
 namespace EOS.Test.FPC
 {
-    [CreateAssetMenu(fileName = "FPCameraSettings", menuName = "Player/Camera Settings")]
+    [CreateAssetMenu(fileName = "FPCameraSettings", menuName = "EOS/Player/Camera Settings")]
     public class FPCameraSettings : ScriptableObject
     {
         public float rotationSpeed = 2f;
