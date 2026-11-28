@@ -42,7 +42,7 @@ namespace EOS.Friends
         internal void Initialize(FriendActionExecutor actionExecutor)
         {
             _actionExecutor = actionExecutor;
-            _actionHandler ??= HandleCardActionClicked;
+            _actionHandler = HandleCardActionClicked;
         }
 
         public void SetFriends(IReadOnlyList<FriendModel> friends, FriendsTabType tab = FriendsTabType.Friends)
@@ -50,7 +50,7 @@ namespace EOS.Friends
             _currentTab = tab;
             _selectedModelIndex = -1;
 
-            int count = friends?.Count ?? 0;
+            int count = friends.Count;
             var items = new SocialItem[count];
             for (int i = 0; i < count; i++)
             {
@@ -64,8 +64,8 @@ namespace EOS.Friends
             _currentTab = FriendsTabType.Notifications;
             _selectedModelIndex = -1;
 
-            int reqCount = requests?.Count ?? 0;
-            int invCount = invites?.Count ?? 0;
+            int reqCount = requests.Count;
+            int invCount = invites.Count;
             int total = reqCount + invCount;
 
             var items = new SocialItem[total];

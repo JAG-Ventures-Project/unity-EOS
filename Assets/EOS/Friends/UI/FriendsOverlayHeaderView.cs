@@ -41,12 +41,7 @@ namespace EOS.Friends
             _identity = identity;
             _beforeCopyAction = beforeCopyAction;
 
-            _copyUserCodeButton?.onClick.AddListener(HandleCopyUserCodeClicked);
-        }
-
-        public void SetIdentity(ILocalPlayerIdentity identity)
-        {
-            _identity = identity;
+            _copyUserCodeButton.onClick.AddListener(HandleCopyUserCodeClicked);
         }
 
         public void RefreshHeader()
@@ -60,9 +55,8 @@ namespace EOS.Friends
         private void UpdateLocalAvatar()
         {
             DestroyLocalAvatarSprite();
-            if (_localAvatarImage == null) return;
 
-            Texture2D tex = _identity?.AvatarTexture;
+            Texture2D tex = _identity.AvatarTexture;
             if (tex != null)
             {
                 _createdLocalAvatarSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
@@ -78,8 +72,8 @@ namespace EOS.Friends
 
         private void HandleCopyUserCodeClicked()
         {
-            _beforeCopyAction?.Invoke();
-            string code = _identity?.UserCode;
+            _beforeCopyAction.Invoke();
+            string code = _identity.UserCode;
             if (string.IsNullOrEmpty(code)) return;
 
             GUIUtility.systemCopyBuffer = code;
@@ -116,7 +110,7 @@ namespace EOS.Friends
                 _copyFeedbackCoroutine = null;
             }
 
-            _copyUserCodeButton?.onClick.RemoveListener(HandleCopyUserCodeClicked);
+            _copyUserCodeButton.onClick.RemoveListener(HandleCopyUserCodeClicked);
             DestroyLocalAvatarSprite();
         }
     }

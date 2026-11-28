@@ -44,10 +44,7 @@ namespace EOS.Auth
 
         private void OnDestroy()
         {
-            if (logoutButton != null)
-            {
-                logoutButton.onClick.RemoveListener(Logout);
-            }
+            logoutButton.onClick.RemoveListener(Logout);
         }
 
         private void Logout()

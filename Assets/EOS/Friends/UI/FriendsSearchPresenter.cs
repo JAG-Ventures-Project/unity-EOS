@@ -85,15 +85,12 @@ namespace EOS.Friends
         private void FilterByStatus(IReadOnlyList<FriendModel> source, FriendRelationStatus requiredStatus)
         {
             _filteredFriends.Clear();
-            if (source != null)
+            for (int i = 0; i < source.Count; i++)
             {
-                for (int i = 0; i < source.Count; i++)
+                FriendModel f = source[i];
+                if (f.Status == requiredStatus)
                 {
-                    FriendModel f = source[i];
-                        if (f.Status == requiredStatus)
-                        {
-                            _filteredFriends.Add(f);
-                        }
+                    _filteredFriends.Add(f);
                 }
             }
 
@@ -132,7 +129,7 @@ namespace EOS.Friends
 
         private void HandleSearchButtonClicked()
         {
-            _onBeforeSearch?.Invoke();
+            _onBeforeSearch.Invoke();
             ExecuteAddFriendLookup(_searchInputField.text.Trim());
         }
 

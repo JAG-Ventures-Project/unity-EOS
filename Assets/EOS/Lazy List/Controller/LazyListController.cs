@@ -1,5 +1,4 @@
 using Unity.Profiling;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.UI;
@@ -30,6 +29,11 @@ namespace LazyList
 #if UNITY_EDITOR
         private void OnValidate()
         {
+            if (UnityEditor.EditorUtility.IsPersistent(this))
+            {
+                return;
+            }
+
             Assert.IsNotNull(scrollRect, "scrollRect is not assigned");
             Assert.IsNotNull(itemPrefab, "itemPrefab is not assigned");
         }

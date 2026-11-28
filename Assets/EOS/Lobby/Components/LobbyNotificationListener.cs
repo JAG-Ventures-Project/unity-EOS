@@ -236,6 +236,14 @@ namespace EOS.Lobby
                     listener._attributes.UpdateAndCheckReadyStatus();
                     listener.OnPlayerLeft?.Invoke(data.TargetUserId);
                     break;
+                case LobbyMemberStatus.Promoted:
+                    if (data.TargetUserId == listener._state.LocalProductUserId)
+                    {
+                        listener._state.IsLobbyOwner = true;
+                    }
+                    listener._attributes.UpdateAndCheckReadyStatus();
+                    listener.OnLobbyUpdated?.Invoke();
+                    break;
                 case LobbyMemberStatus.Closed:
                     if (!listener._state.IsLobbyOwner)
                     {

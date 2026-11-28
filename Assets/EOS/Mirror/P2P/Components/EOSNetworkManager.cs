@@ -6,6 +6,7 @@ using Mirror;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using EpicTransport;
+using EOS.Auth;
 using EOS.Core;
 
 namespace EOS.P2P
@@ -15,6 +16,10 @@ namespace EOS.P2P
     [DisallowMultipleComponent]
     public class EOSNetworkManager : NetworkManager, INetworkSessionService
     {
+        [Header("Reconnection")]
+        [Tooltip("When enabled, clients who disconnect, crash, or log out mid-match automatically rejoin if the match is still active.")]
+        [SerializeField] private bool autoRejoinMatch = true;
+
         private bool _isVoluntaryDisconnect;
 
         public static EOSNetworkManager Instance => singleton as EOSNetworkManager;
@@ -27,6 +32,7 @@ namespace EOS.P2P
         bool INetworkSessionService.IsServerActive => NetworkServer.active;
         bool INetworkSessionService.IsClientConnected => NetworkClient.isConnected;
         bool INetworkSessionService.IsClientActive => NetworkClient.active;
+        bool INetworkSessionService.AutoRejoinMatch => autoRejoinMatch;
         void INetworkSessionService.StartHost(string targetScene) => StartEosHost(targetScene);
         void INetworkSessionService.StartClient(string hostAddress) => StartEosClient(hostAddress);
         void INetworkSessionService.StopNetwork() => StopNetwork();
@@ -52,17 +58,45 @@ namespace EOS.P2P
         public override void Awake()
         {
             base.Awake();
+            if (singleton != this)
+            {
+                return;
+            }
+
             TryGetComponent(out _eosTransport);
             NetworkService.Current = this;
+            SessionAuthCoordinator.OnBeforeLogout += HandleBeforeLogout;
         }
 
         public override void OnDestroy()
         {
+            SessionAuthCoordinator.OnBeforeLogout -= HandleBeforeLogout;
             base.OnDestroy();
             if (NetworkService.Current == (INetworkSessionService)this)
             {
                 NetworkService.Current = new NullNetworkSessionService();
             }
+        }
+
+        private void HandleBeforeLogout()
+        {
+            if (!NetworkServer.active && !NetworkClient.active) return;
+
+            _isVoluntaryDisconnect = true;
+            string savedOfflineScene = offlineScene;
+            offlineScene = string.Empty;
+
+            if (NetworkServer.active && NetworkClient.isConnected)
+            {
+                StopHost();
+            }
+            else
+            {
+                if (NetworkClient.active) StopClient();
+                if (NetworkServer.active) StopServer();
+            }
+
+            offlineScene = savedOfflineScene;
         }
 
         #region Connection Handlers
@@ -229,11 +263,7 @@ namespace EOS.P2P
         public override void OnStartServer()
         {
             base.OnStartServer();
-
-            if (_eosTransport != null)
-            {
-                _eosTransport.ConnectionFilter = ValidateTransportConnection;
-            }
+            _eosTransport.ConnectionFilter = ValidateTransportConnection;
 
             if (string.IsNullOrEmpty(networkSceneName) || networkSceneName == offlineScene)
             {
@@ -365,6 +395,7 @@ namespace EOS.P2P
         bool INetworkSessionService.IsServerActive => false;
         bool INetworkSessionService.IsClientConnected => false;
         bool INetworkSessionService.IsClientActive => false;
+        bool INetworkSessionService.AutoRejoinMatch => false;
         void INetworkSessionService.StartHost(string targetScene) => StartEosHost(targetScene);
         void INetworkSessionService.StartClient(string hostAddress) => StartEosClient(hostAddress);
         void INetworkSessionService.StopNetwork() => StopNetwork();

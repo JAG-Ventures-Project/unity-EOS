@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using EOS.Auth;
 using EOS.Core;
+using EOS.Notification;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Lobby;
 using Epic.OnlineServices.Platform;
@@ -86,6 +87,8 @@ namespace EOS.Lobby
         private readonly LobbySessionService _sessions;
         private readonly LobbyRejoinService _rejoin;
         private INetworkSessionService _boundNetworkService;
+        private Action _pendingLogoutCallback;
+        private (ProductUserId UserId, string LobbyId, string HostAddress, string JoinCode) _preservedLogoutRejoin;
 
         private static LobbyManager _instance;
         public static LobbyManager Instance => _instance ??=
@@ -105,14 +108,14 @@ namespace EOS.Lobby
                 _lobbyHandle,
                 _state,
                 CompleteOperation,
-                ready => OnReadyStatusChanged?.Invoke(ready));
+                HandleReadyStatusChanged);
 
             _notifications = new LobbyNotificationListener(_lobbyHandle, _state, _attributes);
-            _notifications.OnInviteReceived += invite => OnLobbyInviteReceived?.Invoke(invite);
-            _notifications.OnLobbyUpdated += () => OnLobbyUpdated?.Invoke();
-            _notifications.OnGameStarted += host => OnGameStarted?.Invoke(host);
-            _notifications.OnPlayerJoined += userId => OnPlayerJoined?.Invoke(userId);
-            _notifications.OnPlayerLeft += userId => OnPlayerLeft?.Invoke(userId);
+            _notifications.OnInviteReceived += HandleLobbyInviteReceived;
+            _notifications.OnLobbyUpdated += HandleLobbyUpdated;
+            _notifications.OnGameStarted += HandleGameStarted;
+            _notifications.OnPlayerJoined += HandlePlayerJoined;
+            _notifications.OnPlayerLeft += HandlePlayerLeft;
             _notifications.OnUnexpectedLeft += HandleUnexpectedLobbyLeft;
             _notifications.OnDisconnected += HandleLobbyDisconnected;
 
@@ -121,10 +124,10 @@ namespace EOS.Lobby
                 _state,
                 _attributes,
                 _notifications,
-                code => OnLobbyCreated?.Invoke(code),
-                host => OnLobbyJoined?.Invoke(host),
-                () => OnLobbyLeft?.Invoke(),
-                host => OnGameStarted?.Invoke(host),
+                HandleLobbyCreated,
+                HandleLobbyJoined,
+                HandleLobbyLeft,
+                HandleGameStarted,
                 CompleteOperation,
                 CompleteOperation);
 
@@ -134,7 +137,7 @@ namespace EOS.Lobby
 
             _notifications.SubscribeToInviteNotifications();
             EOSSDKManager.OnShutdown += Dispose;
-            SessionAuthCoordinator.OnLoggedOut += HandleLoggedOut;
+            SessionAuthCoordinator.BeforeLogoutAsync = HandleBeforeLogoutAsync;
 
             NetworkService.OnCurrentChanged += BindNetworkService;
             BindNetworkService(NetworkService.Current);
@@ -152,19 +155,22 @@ namespace EOS.Lobby
             }
 
             _boundNetworkService = service;
-            if (_boundNetworkService != null)
-            {
-                _boundNetworkService.OnUnexpectedClientDisconnect -= HandleNetworkDisconnect;
-                _boundNetworkService.OnUnexpectedClientDisconnect += HandleNetworkDisconnect;
-                _boundNetworkService.ConnectionValidator = ValidateIncomingP2PConnection;
-            }
+            _boundNetworkService.OnUnexpectedClientDisconnect -= HandleNetworkDisconnect;
+            _boundNetworkService.OnUnexpectedClientDisconnect += HandleNetworkDisconnect;
+            _boundNetworkService.ConnectionValidator = ValidateIncomingP2PConnection;
+            AllowAutoRejoin = _boundNetworkService.AutoRejoinMatch;
         }
 
-        // AI implementation: Forwards rejoin state transitions without allocating closure delegates.
-        private void HandleAutoRejoinStateChanged(bool isRejoining, string message)
-        {
-            OnAutoRejoinStateChanged?.Invoke(isRejoining, message);
-        }
+        private void HandleLobbyCreated(string code) => OnLobbyCreated?.Invoke(code);
+        private void HandleLobbyJoined(string host) => OnLobbyJoined?.Invoke(host);
+        private void HandleLobbyLeft() => OnLobbyLeft?.Invoke();
+        private void HandleGameStarted(string host) => OnGameStarted?.Invoke(host);
+        private void HandleReadyStatusChanged(bool ready) => OnReadyStatusChanged?.Invoke(ready);
+        private void HandleLobbyUpdated() => OnLobbyUpdated?.Invoke();
+        private void HandleLobbyInviteReceived(LobbyInviteCallbackData invite) => OnLobbyInviteReceived?.Invoke(invite);
+        private void HandlePlayerJoined(ProductUserId userId) => OnPlayerJoined?.Invoke(userId);
+        private void HandlePlayerLeft(ProductUserId userId) => OnPlayerLeft?.Invoke(userId);
+        private void HandleAutoRejoinStateChanged(bool isRejoining, string message) => OnAutoRejoinStateChanged?.Invoke(isRejoining, message);
 
         // AI implementation: Server-authoritative P2P connection whitelist check when AllowJoinInProgress is false.
         private bool ValidateIncomingP2PConnection(string productUserId)
@@ -186,10 +192,44 @@ namespace EOS.Lobby
             }
         }
 
-        private void HandleLoggedOut()
+        private void HandleBeforeLogoutAsync(Action onComplete)
         {
-            _rejoin.CancelAutoRejoin(clearPreferences: true);
-            _sessions.ResetState();
+            bool preserveRejoin = _state.AllowAutoRejoin && !_state.IsLobbyOwner && (_state.HasGameStarted || _state.IsAutoRejoining);
+            if (preserveRejoin)
+            {
+                ProductUserId localPuid = _state.LocalProductUserId ?? ConnectManager.Instance?.LocalProductUserId;
+                string lobbyId = _state.IsInLobby ? _state.CurrentLobbyId : _state.PendingRejoinLobbyId;
+                string hostAddress = _state.IsInLobby ? _state.CurrentHostAddress : _state.PendingRejoinHostAddress;
+                string joinCode = _state.IsInLobby ? _state.CurrentJoinCode : _state.PendingRejoinJoinCode;
+                _preservedLogoutRejoin = (localPuid, lobbyId, hostAddress, joinCode);
+            }
+            else
+            {
+                _preservedLogoutRejoin = default;
+            }
+
+            _rejoin.CancelAutoRejoin(clearPreferences: !preserveRejoin, leaveOrphanLobby: false);
+            _pendingLogoutCallback = onComplete;
+            _sessions.LeaveLobby(HandleLogoutLeaveCompleted, notifyLeft: false);
+        }
+
+        private void HandleLogoutLeaveCompleted(bool success)
+        {
+            if (_preservedLogoutRejoin.UserId != null && !string.IsNullOrEmpty(_preservedLogoutRejoin.LobbyId))
+            {
+                LobbyPreferences.SetInLobby(
+                    _preservedLogoutRejoin.UserId,
+                    _preservedLogoutRejoin.LobbyId,
+                    isOwner: false,
+                    inMatch: true,
+                    _preservedLogoutRejoin.HostAddress,
+                    _preservedLogoutRejoin.JoinCode);
+            }
+            _preservedLogoutRejoin = default;
+
+            Action callback = _pendingLogoutCallback;
+            _pendingLogoutCallback = null;
+            callback?.Invoke();
         }
 
         private void HandleUnexpectedLobbyLeft(string error)
@@ -197,7 +237,20 @@ namespace EOS.Lobby
             _rejoin.CancelAutoRejoin(clearPreferences: true);
             _sessions.ResetState();
             OnLobbyLeft?.Invoke();
-            OnLobbyError?.Invoke(error);
+
+            if (NetworkService.Current.IsClientActive || NetworkService.Current.IsServerActive)
+            {
+                NetworkService.Current.StopNetwork();
+            }
+
+            if (OnLobbyError != null)
+            {
+                OnLobbyError.Invoke(error);
+            }
+            else if (!string.IsNullOrEmpty(error))
+            {
+                NotificationManager.Show(error, NotificationType.Warning);
+            }
         }
 
         public void CreateLobby(uint maxMembers, Action<bool, string> onComplete = null)
@@ -305,8 +358,12 @@ namespace EOS.Lobby
         public void Dispose()
         {
             EOSSDKManager.OnShutdown -= Dispose;
-            SessionAuthCoordinator.OnLoggedOut -= HandleLoggedOut;
+            if (SessionAuthCoordinator.BeforeLogoutAsync == HandleBeforeLogoutAsync)
+            {
+                SessionAuthCoordinator.BeforeLogoutAsync = null;
+            }
             NetworkService.OnCurrentChanged -= BindNetworkService;
+            _rejoin.OnAutoRejoinStateChanged -= HandleAutoRejoinStateChanged;
             _rejoin.Dispose();
 
             if (_boundNetworkService != null)

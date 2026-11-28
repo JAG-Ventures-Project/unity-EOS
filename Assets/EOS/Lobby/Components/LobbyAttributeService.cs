@@ -119,6 +119,35 @@ namespace EOS.Lobby
             _completeOperation(onComplete, true, null);
         }
 
+        public void AddAllowedRejoiner(ProductUserId userId, Action<bool, string> onComplete = null)
+        {
+            if (userId == null || !userId.IsValid())
+            {
+                onComplete?.Invoke(false, "[LobbyManager] Target userId is invalid.");
+                return;
+            }
+
+            string puid = userId.ToString();
+            bool added = _state.AllowedRejoiners.Add(puid);
+            if (!added || !_state.IsInLobby || !_state.IsLobbyOwner || !_state.HasGameStarted || _state.AllowJoinInProgress)
+            {
+                onComplete?.Invoke(true, null);
+                return;
+            }
+
+            if (!TryCreateModification(_state.CurrentLobbyId, out LobbyModification modHandle, onComplete))
+            {
+                _state.AllowedRejoiners.Remove(puid);
+                return;
+            }
+
+            AddPublicLobbyAttribute(modHandle, LobbyManager.AllowedRejoinersKey, BuildAllowedRejoinersAttribute());
+            _lobbyHandle.UpdateLobby(
+                new UpdateLobbyOptions { LobbyModificationHandle = modHandle },
+                (onComplete, modHandle),
+                HandleUpdateCallback);
+        }
+
         public void RemoveAllowedRejoiner(ProductUserId userId)
         {
             if (userId == null || !_state.AllowedRejoiners.Remove(userId.ToString()))
@@ -282,7 +311,7 @@ namespace EOS.Lobby
             var (onComplete, modHandle) = ((Action<bool, string>, LobbyModification))data.ClientData;
             modHandle?.Release();
 
-            if (data.ResultCode != Result.Success)
+            if (data.ResultCode != Result.Success && data.ResultCode != Result.NoChange)
             {
                 _completeOperation(onComplete, false, $"[LobbyManager] Lobby update failed: {data.ResultCode}");
                 return;

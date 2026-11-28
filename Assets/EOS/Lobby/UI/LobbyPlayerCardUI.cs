@@ -32,14 +32,22 @@ namespace EOS.Lobby
 
             if (playerNameText == null) Debug.LogWarning("[LobbyPlayerCardUI] PlayerNameText must not be null.", this);
             if (kickPlayerButton == null) Debug.LogWarning("[LobbyPlayerCardUI] kickPlayerButton must not be null.", this);
+            if (addFriendButton == null) Debug.LogWarning("[LobbyPlayerCardUI] addFriendButton must not be null.", this);
             if (playerAvatarImage == null) Debug.LogWarning("[LobbyPlayerCardUI] PlayerAvatarImage must not be null.", this);
             if (readyIndicator == null) Debug.LogWarning("[LobbyPlayerCardUI] readyIndicator must not be null.", this);
         }
 #endif
 
-        public void SetData(string playerName, Sprite avatarSprite, bool isReady = false, bool canKick = false, bool canAddFriend = false)
+        private void Awake()
         {
-            SetData(null, playerName, avatarSprite, isReady, canKick, canAddFriend);
+            kickPlayerButton.onClick.AddListener(OnKickPlayerClicked);
+            addFriendButton.onClick.AddListener(OnAddFriendPlayerClicked);
+        }
+
+        private void OnDestroy()
+        {
+            kickPlayerButton.onClick.RemoveListener(OnKickPlayerClicked);
+            addFriendButton.onClick.RemoveListener(OnAddFriendPlayerClicked);
         }
 
         public void SetData(ProductUserId userId, string playerName, Sprite avatarSprite, bool isReady = false, bool canKick = false, bool canAddFriend = false)
@@ -52,33 +60,18 @@ namespace EOS.Lobby
             playerAvatarImage.sprite = avatarSprite;
             playerAvatarImage.enabled = (avatarSprite != null);
             SetReady(isReady);
-
-            if (kickPlayerButton != null)
-            {
-                kickPlayerButton.onClick.RemoveListener(OnKickPlayerClicked);
-                kickPlayerButton.onClick.AddListener(OnKickPlayerClicked);
-            }
-
-            if (addFriendButton != null)
-            {
-                addFriendButton.onClick.RemoveListener(OnAddFriendPlayerClicked);
-                addFriendButton.onClick.AddListener(OnAddFriendPlayerClicked);
-            }
-
             SetKickButtonActive(canKick);
             SetAddFriendButtonActive(canAddFriend);
         }
 
         public void SetKickButtonActive(bool active)
         {
-            if (kickPlayerButton == null) return;
             kickPlayerButton.gameObject.SetActive(active);
             kickPlayerButton.interactable = active;
         }
 
         public void SetAddFriendButtonActive(bool active)
         {
-            if (addFriendButton == null) return;
             addFriendButton.gameObject.SetActive(active);
             addFriendButton.interactable = active;
         }
@@ -92,13 +85,6 @@ namespace EOS.Lobby
         {
             PlayerName = newName;
             playerNameText.text = newName;
-        }
-
-        public void UpdateAvatar(Sprite newAvatar)
-        {
-            AvatarSprite = newAvatar;
-            playerAvatarImage.sprite = newAvatar;
-            playerAvatarImage.enabled = (newAvatar != null);
         }
 
         private void OnKickPlayerClicked()

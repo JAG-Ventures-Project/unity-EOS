@@ -24,9 +24,16 @@ namespace EOS.Friends
 
         private readonly Dictionary<string, FriendModel> _incomingJoinRequests = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _pendingOutgoingJoinRequests = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Queue<(string TargetPuid, FriendSignal Signal, Action<bool, string> OnComplete)> _pendingAcceptedJoins = new();
         private string _pendingJoinLobbyCode;
 
-        public IEnumerable<FriendModel> IncomingJoinRequests => _incomingJoinRequests.Values;
+        public void CopyIncomingJoinRequestsTo(List<FriendModel> target)
+        {
+            foreach (FriendModel joinReq in _incomingJoinRequests.Values)
+            {
+                target.Add(joinReq);
+            }
+        }
 
         public FriendInviteService(
             ICrossPlayFriendsStore friendsStore,
@@ -90,12 +97,14 @@ namespace EOS.Friends
 
         public void InviteFriendToLobby(ProductUserId targetUserId, Action<bool, string> onComplete = null)
         {
-            if (_friendsStore.IsBlocked(targetUserId.ToString()))
+            string targetPuid = targetUserId.ToString();
+            if (_friendsStore.IsBlocked(targetPuid))
             {
                 onComplete?.Invoke(false, "Cannot invite a blocked player.");
                 return;
             }
 
+            RemoveIncomingJoinRequest(targetPuid);
             _getLobbyInviteService()?.InviteFriendToLobby(targetUserId, onComplete);
         }
 
@@ -107,11 +116,13 @@ namespace EOS.Friends
                 return;
             }
 
-            if (_friendsStore != null && _friendsStore.IsBlocked(targetPuid))
+            if (_friendsStore.IsBlocked(targetPuid))
             {
                 onComplete?.Invoke(false, "Cannot invite a blocked player.");
                 return;
             }
+
+            RemoveIncomingJoinRequest(targetPuid);
 
             if (!NetworkService.Current.IsServerActive)
             {
@@ -226,7 +237,7 @@ namespace EOS.Friends
                 directSignal.hostAddress = ConnectManager.Instance?.LocalProductUserIdString;
 
                 _signalChannel?.Send(productUserId, directSignal);
-                _notifyListChanged?.Invoke();
+                _notifyListChanged.Invoke();
                 onComplete?.Invoke(true, "Join request accepted!");
                 return;
             }
@@ -237,15 +248,33 @@ namespace EOS.Friends
             signal.hostAddress = activeLobby?.CurrentHostAddress ?? ConnectManager.Instance?.LocalProductUserIdString;
             signal.joinCode = activeLobby?.CurrentJoinCode;
 
-            _signalChannel?.Send(productUserId, signal);
-
             ProductUserId targetPuidObj = ProductUserId.FromString(productUserId);
             if (targetPuidObj != null && targetPuidObj.IsValid() && activeLobby != null && activeLobby.IsInLobby)
             {
-                activeLobby.SendInvite(targetPuidObj);
+                // Dispatch EOS invite (and commit mid-match whitelist) before signaling acceptance so the joiner is authorized on EOS
+                _pendingAcceptedJoins.Enqueue((productUserId, signal, onComplete));
+                _notifyListChanged.Invoke();
+                activeLobby.SendInvite(targetPuidObj, HandleAcceptJoinInviteSent);
+                return;
             }
 
-            _notifyListChanged?.Invoke();
+            _signalChannel?.Send(productUserId, signal);
+            _notifyListChanged.Invoke();
+            onComplete?.Invoke(true, "Join request accepted!");
+        }
+
+        private void HandleAcceptJoinInviteSent(bool success, string error)
+        {
+            if (_pendingAcceptedJoins.Count == 0) return;
+
+            var (targetPuid, signal, onComplete) = _pendingAcceptedJoins.Dequeue();
+            if (!success)
+            {
+                onComplete?.Invoke(false, error);
+                return;
+            }
+
+            _signalChannel?.Send(targetPuid, signal);
             onComplete?.Invoke(true, "Join request accepted!");
         }
 
@@ -256,7 +285,7 @@ namespace EOS.Friends
             FriendSignal signal = CreateInviteSignal(FriendSignalType.JoinRequestDeclined, productUserId);
             _signalChannel?.Send(productUserId, signal);
 
-            _notifyListChanged?.Invoke();
+            _notifyListChanged.Invoke();
             onComplete?.Invoke(true, "Join request declined.");
         }
 
@@ -290,7 +319,7 @@ namespace EOS.Friends
                 }
             }
 
-            if (NetworkService.Current != null && (NetworkService.Current.IsServerActive || NetworkService.Current.IsClientConnected))
+            if (NetworkService.Current.IsServerActive || NetworkService.Current.IsClientConnected)
             {
                 if (NetworkService.Current.IsPlayerInSession(friend.ProductUserId, friend.DisplayName))
                 {
@@ -330,11 +359,20 @@ namespace EOS.Friends
             return null;
         }
 
+        public void RemoveIncomingJoinRequest(string senderPuid)
+        {
+            if (!string.IsNullOrEmpty(senderPuid) && _incomingJoinRequests.Remove(senderPuid))
+            {
+                _notifyListChanged.Invoke();
+            }
+        }
+
         public void HandleInviteSignal(string senderPuid, FriendSignal signal)
         {
             switch (signal.type)
             {
                 case FriendSignalType.JoinRequest:
+                    _getLobbyInviteService()?.RemoveInviteFromPlayer(senderPuid);
                     NotificationManager.Show($"{signal.senderName} requested to join your match!", NotificationType.Normal);
                     _incomingJoinRequests[senderPuid] = new FriendModel
                     {
@@ -345,7 +383,7 @@ namespace EOS.Friends
                         Presence = FriendPresenceState.Online,
                         IsJoinRequest = true
                     };
-                    _notifyListChanged?.Invoke();
+                    _notifyListChanged.Invoke();
                     break;
 
                 case FriendSignalType.JoinRequestAccepted:
@@ -374,6 +412,7 @@ namespace EOS.Friends
         {
             _incomingJoinRequests.Clear();
             _pendingOutgoingJoinRequests.Clear();
+            _pendingAcceptedJoins.Clear();
             _pendingJoinLobbyCode = null;
         }
 
@@ -389,7 +428,6 @@ namespace EOS.Friends
             {
                 if (!string.IsNullOrEmpty(signal.hostAddress))
                 {
-                    FriendsOverlayManager.Instance?.PersistForGameScene();
                     NetworkService.Current.StartClient(signal.hostAddress);
                 }
             }
@@ -407,7 +445,6 @@ namespace EOS.Friends
             }
             else if (!string.IsNullOrEmpty(signal.hostAddress))
             {
-                FriendsOverlayManager.Instance?.PersistForGameScene();
                 NetworkService.Current.StartClient(signal.hostAddress);
             }
         }
@@ -425,15 +462,12 @@ namespace EOS.Friends
 
         private void HandleGameInviteSignal(string senderPuid, FriendSignal signal)
         {
-            if (_friendsStore != null && _friendsStore.IsBlocked(senderPuid)) return;
+            if (_friendsStore.IsBlocked(senderPuid)) return;
 
             string inviterName = string.IsNullOrWhiteSpace(signal.senderName) ? "Player" : signal.senderName;
-            if (_friendsStore != null && (inviterName == "Player" || string.IsNullOrWhiteSpace(inviterName)))
+            if (inviterName == "Player" && _friendsStore.TryGetFriend(senderPuid, out CrossPlayFriendEntry friend))
             {
-                if (_friendsStore.TryGetFriend(senderPuid, out CrossPlayFriendEntry friend))
-                {
-                    inviterName = friend.displayName;
-                }
+                inviterName = friend.displayName;
             }
 
             var directInvite = new LobbyInviteModel
@@ -450,7 +484,7 @@ namespace EOS.Friends
             };
 
             (_getLobbyInviteService() as DirectP2PInviteManager)?.RegisterDirectInvite(directInvite);
-            _notifyListChanged?.Invoke();
+            _notifyListChanged.Invoke();
         }
 
         private static FriendSignal CreateInviteSignal(FriendSignalType type, string targetPuid)

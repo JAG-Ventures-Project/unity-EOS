@@ -56,9 +56,12 @@ namespace EOS.Friends
         private readonly List<FriendModel> _blockedPlayers = new();
         private readonly List<FriendModel> _incomingRequests = new();
         private readonly List<FriendModel> _outgoingRequests = new();
+        private readonly HashSet<string> _addedKeys = new();
         private List<PlatformFriend> _cachedPlatformFriends = new();
 
         private Action _pendingRefreshComplete;
+        private string _pendingUnblockPuid;
+        private Action<bool, string> _pendingUnblockCallback;
         private bool _isInitialized;
 
         public IReadOnlyList<FriendModel> AllFriends => _allFriends;
@@ -73,7 +76,6 @@ namespace EOS.Friends
         public IFriendSignalChannel FriendSignals => _signalChannel;
 
         public event Action OnFriendsListUpdated;
-        public event Action<FriendModel> OnFriendStatusChanged;
         public static event Action OnInitialized;
 
         private static FriendsManager _instance;
@@ -142,14 +144,7 @@ namespace EOS.Friends
 
             ConnectManager.OnLoginSuccess += HandleConnectLoginSuccess;
             SessionAuthCoordinator.OnLoggedOut += HandleLoggedOut;
-
-            if (EOSSDKManager.Instance != null && EOSSDKManager.Instance.Service != null)
-            {
-                EOSSDKManager.Instance.Service.OnTick -= HandleTick;
-                EOSSDKManager.Instance.Service.OnTick += HandleTick;
-                EOSSDKManager.Instance.Service.OnBeforeShutdown -= HandlePlatformShutdown;
-                EOSSDKManager.Instance.Service.OnBeforeShutdown += HandlePlatformShutdown;
-            }
+            EOSSDKManager.Instance.Service.OnBeforeShutdown += HandlePlatformShutdown;
 
             if (UseLobbySystem)
             {
@@ -189,6 +184,7 @@ namespace EOS.Friends
             ConfigurePlatformProvider();
             _platformProvider?.Initialize();
             _signalChannel?.Start();
+            EOSSDKManager.Instance.Service.OnTick += HandleTick;
 
             if (UseLobbySystem)
             {
@@ -207,9 +203,6 @@ namespace EOS.Friends
 
             if (IsRefreshing) return;
 
-            ConfigurePlatformProvider();
-            _platformProvider?.Initialize();
-
             IsRefreshing = true;
             _pendingRefreshComplete = onComplete;
 
@@ -227,9 +220,12 @@ namespace EOS.Friends
         private void HandlePlatformFriendsFetched(List<PlatformFriend> platformFriends)
         {
             _cachedPlatformFriends = platformFriends ?? new List<PlatformFriend>();
-            _lookupService.ResolvePlatformFriendsPuids(
-                _cachedPlatformFriends,
-                () => _friendsStore.Load(HandleCloudStoreLoaded));
+            _lookupService.ResolvePlatformFriendsPuids(_cachedPlatformFriends, HandlePlatformFriendsPuidsResolved);
+        }
+
+        private void HandlePlatformFriendsPuidsResolved()
+        {
+            _friendsStore.Load(HandleCloudStoreLoaded);
         }
 
         private void HandleCloudStoreLoaded(bool success)
@@ -301,7 +297,7 @@ namespace EOS.Friends
             bool gameStarted = inLobby && activeLobby.HasGameStarted;
             HashSet<string> lobbyMemberPuids = _presenceService.CollectLobbyMemberInfo(activeLobby, inLobby, out HashSet<string> lobbyMemberNames);
 
-            var addedKeys = new HashSet<string>();
+            _addedKeys.Clear();
             var crossPlayEntries = _friendsStore.Friends;
 
             // 2. Native Platform Friends
@@ -341,9 +337,9 @@ namespace EOS.Friends
                 _presenceService.PopulatePeerLobbyInfo(model);
                 _allFriends.Add(model);
 
-                addedKeys.Add(pf.PlatformUserId);
-                if (!string.IsNullOrEmpty(pf.ProductUserId)) addedKeys.Add(pf.ProductUserId);
-                if (!string.IsNullOrWhiteSpace(pf.DisplayName)) addedKeys.Add(pf.DisplayName.ToLowerInvariant());
+                _addedKeys.Add(pf.PlatformUserId);
+                if (!string.IsNullOrEmpty(pf.ProductUserId)) _addedKeys.Add(pf.ProductUserId);
+                if (!string.IsNullOrWhiteSpace(pf.DisplayName)) _addedKeys.Add(pf.DisplayName.ToLowerInvariant());
             }
 
             // 3. Cloud Cross-Play Friends
@@ -353,8 +349,8 @@ namespace EOS.Friends
                 if (string.IsNullOrEmpty(cf.productUserId)) continue;
                 if (_friendsStore.IsBlocked(cf.productUserId)) continue;
 
-                bool alreadyAdded = addedKeys.Contains(cf.productUserId);
-                if (!alreadyAdded && !string.IsNullOrWhiteSpace(cf.displayName) && addedKeys.Contains(cf.displayName.ToLowerInvariant()))
+                bool alreadyAdded = _addedKeys.Contains(cf.productUserId);
+                if (!alreadyAdded && !string.IsNullOrWhiteSpace(cf.displayName) && _addedKeys.Contains(cf.displayName.ToLowerInvariant()))
                 {
                     alreadyAdded = true;
                     for (int a = 0; a < _allFriends.Count; a++)
@@ -397,18 +393,15 @@ namespace EOS.Friends
                 _presenceService.PopulatePeerLobbyInfo(model);
                 _allFriends.Add(model);
 
-                addedKeys.Add(cf.productUserId);
-                if (!string.IsNullOrWhiteSpace(cf.displayName)) addedKeys.Add(cf.displayName.ToLowerInvariant());
+                _addedKeys.Add(cf.productUserId);
+                if (!string.IsNullOrWhiteSpace(cf.displayName)) _addedKeys.Add(cf.displayName.ToLowerInvariant());
             }
 
             // 4. Sort All Friends: In-match / In-lobby / Online presence on top, then alphabetical
             _allFriends.Sort(SortFriendsPresenceFirst);
 
             // 5. Incoming Join Requests & Friend Requests
-            foreach (FriendModel joinReq in _inviteHandler.IncomingJoinRequests)
-            {
-                _incomingRequests.Add(joinReq);
-            }
+            _inviteHandler.CopyIncomingJoinRequestsTo(_incomingRequests);
 
             var incoming = _friendsStore.PendingIncoming;
             for (int i = 0; i < incoming.Count; i++)
@@ -494,14 +487,23 @@ namespace EOS.Friends
 
         public void UnblockPlayer(string productUserId, Action<bool, string> onComplete = null)
         {
-            _relationshipService.UnblockPlayer(productUserId, (success, msg) =>
+            _pendingUnblockPuid = productUserId;
+            _pendingUnblockCallback = onComplete;
+            _relationshipService.UnblockPlayer(productUserId, HandleUnblockCompleted);
+        }
+
+        private void HandleUnblockCompleted(bool success, string msg)
+        {
+            string puid = _pendingUnblockPuid;
+            Action<bool, string> callback = _pendingUnblockCallback;
+            _pendingUnblockPuid = null;
+            _pendingUnblockCallback = null;
+
+            if (success)
             {
-                if (success)
-                {
-                    PingFriend(productUserId);
-                }
-                onComplete?.Invoke(success, msg);
-            });
+                PingFriend(puid);
+            }
+            callback?.Invoke(success, msg);
         }
 
         public void InviteFriend(FriendModel friend, Action<bool, string> onComplete = null)
@@ -524,6 +526,9 @@ namespace EOS.Friends
 
         public void ClearPendingJoinRequest(string puid)
             => _inviteHandler.ClearPendingJoinRequest(puid);
+
+        public void RemoveIncomingJoinRequest(string senderPuid)
+            => _inviteHandler.RemoveIncomingJoinRequest(senderPuid);
 
         public void SendJoinRequest(FriendModel friend, Action<bool, string> onComplete = null)
             => _inviteHandler.SendJoinRequest(friend, onComplete);
@@ -581,8 +586,8 @@ namespace EOS.Friends
             if (lobby == null) return;
             lobby.OnLobbyJoined += HandleLobbyPresenceEvent;
             lobby.OnLobbyLeft += HandleLobbyLeftEvent;
-            lobby.OnPlayerJoined += HandleLobbyPlayerEvent;
-            lobby.OnPlayerLeft += HandleLobbyPlayerEvent;
+            lobby.OnPlayerJoined += HandleLobbyPlayerJoined;
+            lobby.OnPlayerLeft += HandleLobbyPlayerLeft;
             lobby.OnGameStarted += HandleLobbyPresenceEvent;
             lobby.OnLobbyUpdated += HandleLobbyUpdatedEvent;
         }
@@ -592,14 +597,19 @@ namespace EOS.Friends
             if (lobby == null) return;
             lobby.OnLobbyJoined -= HandleLobbyPresenceEvent;
             lobby.OnLobbyLeft -= HandleLobbyLeftEvent;
-            lobby.OnPlayerJoined -= HandleLobbyPlayerEvent;
-            lobby.OnPlayerLeft -= HandleLobbyPlayerEvent;
+            lobby.OnPlayerJoined -= HandleLobbyPlayerJoined;
+            lobby.OnPlayerLeft -= HandleLobbyPlayerLeft;
             lobby.OnGameStarted -= HandleLobbyPresenceEvent;
             lobby.OnLobbyUpdated -= HandleLobbyUpdatedEvent;
         }
 
         private void HandleLobbyPresenceEvent(string hostAddress)
         {
+            if (!string.IsNullOrEmpty(hostAddress))
+            {
+                _inviteHandler.RemoveIncomingJoinRequest(hostAddress);
+                _inviteService.RemoveInviteFromPlayer(hostAddress);
+            }
             UpdateLobbyPresence();
             _presenceService.SyncLocalPresence(UseLobbySystem, ActiveLobby);
             PingAllFriends();
@@ -612,7 +622,18 @@ namespace EOS.Friends
             PingAllFriends();
         }
 
-        private void HandleLobbyPlayerEvent(ProductUserId _) => UpdateLobbyPresence();
+        private void HandleLobbyPlayerJoined(ProductUserId userId)
+        {
+            if (userId != null && userId.IsValid())
+            {
+                string puid = userId.ToString();
+                _inviteHandler.RemoveIncomingJoinRequest(puid);
+                _inviteService.RemoveInviteFromPlayer(puid);
+            }
+            UpdateLobbyPresence();
+        }
+
+        private void HandleLobbyPlayerLeft(ProductUserId _) => UpdateLobbyPresence();
         private void HandleLobbyUpdatedEvent() => UpdateLobbyPresence();
 
         private void UpdateLobbyPresence()
@@ -633,11 +654,7 @@ namespace EOS.Friends
             };
         }
 
-        private void HandleConnectLoginSuccess(ProductUserId _)
-        {
-            Initialize();
-            _signalChannel?.Start();
-        }
+        private void HandleConnectLoginSuccess(ProductUserId _) => Initialize();
 
         private void HandlePlatformShutdown() => Shutdown();
 
@@ -657,15 +674,18 @@ namespace EOS.Friends
         private void HandleLoggedOut()
         {
             _isInitialized = false;
+            EOSSDKManager.Instance.Service.OnTick -= HandleTick;
 
             if (_lobby != null)
             {
                 UnsubscribeLobbyEvents(_lobby);
             }
 
+            _presenceService.BroadcastOffline(_allFriends);
             _signalChannel?.Stop();
             _platformProvider?.Shutdown();
             _platformProvider = null;
+            _inviteService.ClearAllInvites();
             _friendsStore.Reset();
             _presenceService.Clear();
             _inviteHandler.Clear();
@@ -680,12 +700,7 @@ namespace EOS.Friends
         {
             ConnectManager.OnLoginSuccess -= HandleConnectLoginSuccess;
             SessionAuthCoordinator.OnLoggedOut -= HandleLoggedOut;
-
-            if (EOSSDKManager.Instance != null && EOSSDKManager.Instance.Service != null)
-            {
-                EOSSDKManager.Instance.Service.OnTick -= HandleTick;
-                EOSSDKManager.Instance.Service.OnBeforeShutdown -= HandlePlatformShutdown;
-            }
+            EOSSDKManager.Instance.Service.OnBeforeShutdown -= HandlePlatformShutdown;
 
             if (UseLobbySystem && LobbyManager.ExternalDisplayNameResolver == ResolveCrossPlayDisplayName)
             {

@@ -10,6 +10,7 @@ namespace EOS.Core
         bool IsServerActive { get; }
         bool IsClientConnected { get; }
         bool IsClientActive { get; }
+        bool AutoRejoinMatch { get; }
 
         event Action OnUnexpectedClientDisconnect;
 

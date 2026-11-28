@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Assertions;
 using EOS.Auth;
 using System;
 using Epic.OnlineServices.Platform;

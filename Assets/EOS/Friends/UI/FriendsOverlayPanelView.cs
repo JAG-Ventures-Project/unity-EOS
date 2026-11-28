@@ -100,8 +100,8 @@ namespace EOS.Friends
             _blockedTab.onValueChanged.AddListener(HandleBlockedToggled);
             _platformSubTab.onValueChanged.AddListener(HandlePlatformSubTabToggled);
             _crossPlaySubTab.onValueChanged.AddListener(HandleCrossPlaySubTabToggled);
-            _openButton?.onClick.AddListener(HandleOpenClicked);
-            _closeButton?.onClick.AddListener(HandleCloseClicked);
+            _openButton.onClick.AddListener(HandleOpenClicked);
+            _closeButton.onClick.AddListener(HandleCloseClicked);
 
             Canvas.ForceUpdateCanvases();
             _openAnchoredX = _overlayMenu.anchoredPosition.x;
@@ -322,8 +322,8 @@ namespace EOS.Friends
             _blockedTab.onValueChanged.RemoveListener(HandleBlockedToggled);
             _platformSubTab.onValueChanged.RemoveListener(HandlePlatformSubTabToggled);
             _crossPlaySubTab.onValueChanged.RemoveListener(HandleCrossPlaySubTabToggled);
-            _openButton?.onClick.RemoveListener(HandleOpenClicked);
-            _closeButton?.onClick.RemoveListener(HandleCloseClicked);
+            _openButton.onClick.RemoveListener(HandleOpenClicked);
+            _closeButton.onClick.RemoveListener(HandleCloseClicked);
         }
     }
 }

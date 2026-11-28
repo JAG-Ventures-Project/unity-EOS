@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Epic.OnlineServices;
 
@@ -15,6 +15,7 @@ namespace EOS.Friends
         void InviteFriendToLobby(ProductUserId targetUserId, Action<bool, string> onComplete = null);
         void AcceptInvite(string inviteId, Action<bool, string> onComplete = null);
         void DeclineInvite(string inviteId, Action<bool, string> onComplete = null);
+        void RemoveInviteFromPlayer(string inviterPuid);
         void ClearAllInvites();
     }
 }

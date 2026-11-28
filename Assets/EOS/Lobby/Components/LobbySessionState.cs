@@ -197,7 +197,8 @@ namespace EOS.Lobby
             return false;
         }
 
-        // AI implementation: Verifies the original match host is still both the lobby owner and an active member.
+        // AI implementation: Verifies the original match host is still the active lobby owner.
+        // Uses LobbyDetailsInfo rather than GetMemberByIndex because EOS search results do not populate member PUIDs for non-members.
         public static bool IsHostInLobby(LobbyDetails detailsHandle, string hostAddress)
         {
             if (detailsHandle == null || string.IsNullOrEmpty(hostAddress)) return false;
@@ -207,12 +208,19 @@ namespace EOS.Lobby
 
             if (detailsHandle.CopyInfo(new LobbyDetailsCopyInfoOptions(), out LobbyDetailsInfo info) != Result.Success ||
                 info == null ||
-                info.LobbyOwnerUserId != hostPuid)
+                info.LobbyOwnerUserId == null ||
+                !info.LobbyOwnerUserId.IsValid())
             {
                 return false;
             }
 
-            return IsUserMemberOfLobby(detailsHandle, hostPuid);
+            if (info.LobbyOwnerUserId != hostPuid &&
+                !string.Equals(info.LobbyOwnerUserId.ToString(), hostAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return info.AvailableSlots < info.MaxMembers;
         }
     }
 }

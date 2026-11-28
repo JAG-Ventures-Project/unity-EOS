@@ -14,15 +14,18 @@ namespace EOS.Friends
     public class DirectP2PInviteManager : ILobbyInviteService
     {
         private readonly ICrossPlayFriendsStore _friendsStore;
-        private readonly Dictionary<string, LobbyInviteModel> _pendingInvites = new();
+        private readonly List<LobbyInviteModel> _pendingInvites = new();
+        private readonly Dictionary<string, LobbyInviteModel> _invitesById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, LobbyInviteModel> _invitesByInviter = new(StringComparer.OrdinalIgnoreCase);
 
-        public IReadOnlyList<LobbyInviteModel> PendingInvites => new List<LobbyInviteModel>(_pendingInvites.Values);
+        public IReadOnlyList<LobbyInviteModel> PendingInvites => _pendingInvites;
 
         public event Action<LobbyInviteModel> OnInviteReceived;
         public event Action<string> OnInviteRemoved;
 
-        public DirectP2PInviteManager(ICrossPlayFriendsStore friendsStore = null)
+        public DirectP2PInviteManager(ICrossPlayFriendsStore friendsStore)
         {
+            Assert.IsNotNull(friendsStore, "[DirectP2PInviteManager] ICrossPlayFriendsStore must not be null.");
             _friendsStore = friendsStore;
         }
 
@@ -34,7 +37,7 @@ namespace EOS.Friends
                 return;
             }
 
-            if (_friendsStore != null && _friendsStore.IsBlocked(targetUserId.ToString()))
+            if (_friendsStore.IsBlocked(targetUserId.ToString()))
             {
                 onComplete?.Invoke(false, "Cannot invite a blocked player.");
                 return;
@@ -46,38 +49,29 @@ namespace EOS.Friends
                 NetworkService.Current.StartHost();
             }
 
-            if (FriendsManager.Instance != null)
-            {
-                FriendsManager.Instance.SendDirectGameInvite(targetUserId.ToString(), onComplete);
-            }
-            else
-            {
-                onComplete?.Invoke(false, "FriendsManager unavailable.");
-            }
+            FriendsManager.Instance.SendDirectGameInvite(targetUserId.ToString(), onComplete);
         }
 
         public void AcceptInvite(string inviteId, Action<bool, string> onComplete = null)
         {
             Assert.IsFalse(string.IsNullOrEmpty(inviteId), "[DirectP2PInviteManager] inviteId must not be null or empty.");
 
-            if (!_pendingInvites.TryGetValue(inviteId, out LobbyInviteModel invite))
+            if (!_invitesById.TryGetValue(inviteId, out LobbyInviteModel invite))
             {
                 onComplete?.Invoke(false, "Invite not found.");
                 return;
             }
 
-            _pendingInvites.Remove(inviteId);
+            RemoveInviteInternal(invite);
             OnInviteRemoved?.Invoke(inviteId);
 
-            if (invite.InviterUserId != null && _friendsStore != null && _friendsStore.IsBlocked(invite.InviterUserId.ToString()))
+            if (invite.InviterUserId != null && _friendsStore.IsBlocked(invite.InviterUserId.ToString()))
             {
                 onComplete?.Invoke(false, "Cannot accept an invite from a blocked player.");
                 return;
             }
 
-            FriendsOverlayManager.Instance?.PersistForGameScene();
-
-            if (invite.InviterUserId != null && FriendsManager.Instance != null)
+            if (invite.InviterUserId != null)
             {
                 FriendsManager.Instance.SendDirectInviteAccepted(invite.InviterUserId.ToString());
             }
@@ -90,12 +84,12 @@ namespace EOS.Friends
         {
             Assert.IsFalse(string.IsNullOrEmpty(inviteId), "[DirectP2PInviteManager] inviteId must not be null or empty.");
 
-            if (_pendingInvites.TryGetValue(inviteId, out LobbyInviteModel invite))
+            if (_invitesById.TryGetValue(inviteId, out LobbyInviteModel invite))
             {
-                _pendingInvites.Remove(inviteId);
+                RemoveInviteInternal(invite);
                 OnInviteRemoved?.Invoke(inviteId);
 
-                if (invite.InviterUserId != null && FriendsManager.Instance != null)
+                if (invite.InviterUserId != null)
                 {
                     FriendsManager.Instance.SendDirectInviteDeclined(invite.InviterUserId.ToString());
                 }
@@ -104,16 +98,49 @@ namespace EOS.Friends
             onComplete?.Invoke(true, null);
         }
 
-        public void RegisterDirectInvite(LobbyInviteModel invite)
+        public void RemoveInviteFromPlayer(string inviterPuid)
         {
-            if (invite == null || string.IsNullOrEmpty(invite.InviteId)) return;
-
-            if (invite.InviterUserId != null && _friendsStore != null && _friendsStore.IsBlocked(invite.InviterUserId.ToString()))
+            if (string.IsNullOrEmpty(inviterPuid) || !_invitesByInviter.TryGetValue(inviterPuid, out LobbyInviteModel existing))
             {
                 return;
             }
 
-            _pendingInvites[invite.InviteId] = invite;
+            RemoveInviteInternal(existing);
+            OnInviteRemoved?.Invoke(existing.InviteId);
+        }
+
+        public void RegisterDirectInvite(LobbyInviteModel invite)
+        {
+            if (invite == null || string.IsNullOrEmpty(invite.InviteId)) return;
+
+            string inviterPuid = invite.InviterUserId != null ? invite.InviterUserId.ToString() : string.Empty;
+            if (!string.IsNullOrEmpty(inviterPuid) && _friendsStore.IsBlocked(inviterPuid))
+            {
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(inviterPuid))
+            {
+                FriendsManager.Instance.RemoveIncomingJoinRequest(inviterPuid);
+
+                if (_invitesByInviter.TryGetValue(inviterPuid, out LobbyInviteModel previousByInviter))
+                {
+                    RemoveInviteInternal(previousByInviter);
+                }
+            }
+
+                if (_invitesById.TryGetValue(invite.InviteId, out LobbyInviteModel previousById))
+                {
+                    RemoveInviteInternal(previousById);
+                }
+
+            _pendingInvites.Add(invite);
+            _invitesById[invite.InviteId] = invite;
+            if (!string.IsNullOrEmpty(inviterPuid))
+            {
+                _invitesByInviter[inviterPuid] = invite;
+            }
+
             OnInviteReceived?.Invoke(invite);
             NotificationManager.Show($"{invite.InviterDisplayName} invited you to play!", NotificationType.Normal);
         }
@@ -121,11 +148,27 @@ namespace EOS.Friends
         public void ClearAllInvites()
         {
             _pendingInvites.Clear();
+            _invitesById.Clear();
+            _invitesByInviter.Clear();
         }
 
         public void Dispose()
         {
-            _pendingInvites.Clear();
+            ClearAllInvites();
+        }
+
+        private void RemoveInviteInternal(LobbyInviteModel invite)
+        {
+                _invitesById.Remove(invite.InviteId);
+            if (invite.InviterUserId != null)
+            {
+                    string inviterPuid = invite.InviterUserId.ToString();
+                if (_invitesByInviter.TryGetValue(inviterPuid, out LobbyInviteModel current) && current == invite)
+                {
+                    _invitesByInviter.Remove(inviterPuid);
+                }
+            }
+            _pendingInvites.Remove(invite);
         }
     }
 }

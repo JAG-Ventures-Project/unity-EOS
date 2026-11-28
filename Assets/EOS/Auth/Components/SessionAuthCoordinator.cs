@@ -10,7 +10,11 @@ namespace EOS.Auth
     /// </summary>
     public static class SessionAuthCoordinator
     {
+        public static event Action OnBeforeLogout;
         public static event Action OnLoggedOut;
+        public static Action<Action> BeforeLogoutAsync;
+
+        private static Action<bool, string> _pendingLogoutComplete;
 
         /// <summary>
         /// Checks launcher arguments, remembered Epic credentials, or Steam for automatic silent login.
@@ -64,24 +68,47 @@ namespace EOS.Auth
         /// </summary>
         public static void LogoutAll(Action<bool, string> onComplete = null)
         {
-            void FinalizeLogout()
-            {
-                ConnectManager.Instance?.CancelSteamTicket();
-                ConnectManager.Instance?.ResetSession();
-                EOSSDKManager.LocalDisplayName = "Player";
-                AuthPreferences.ClearSession();
-                OnLoggedOut?.Invoke();
-                onComplete?.Invoke(true, null);
-            }
+            _pendingLogoutComplete = onComplete;
+            OnBeforeLogout?.Invoke();
 
+            if (BeforeLogoutAsync != null)
+            {
+                BeforeLogoutAsync.Invoke(ContinueLogoutAfterCleanup);
+            }
+            else
+            {
+                ContinueLogoutAfterCleanup();
+            }
+        }
+
+        private static void ContinueLogoutAfterCleanup()
+        {
             if (AuthManager.Instance != null && AuthManager.Instance.IsLoggedIn)
             {
-                AuthManager.Instance.Logout(forgetUser: true, (success, error) => FinalizeLogout());
+                AuthManager.Instance.Logout(forgetUser: true, HandleAuthLogoutComplete);
             }
             else
             {
                 FinalizeLogout();
             }
+        }
+
+        private static void HandleAuthLogoutComplete(bool success, string error)
+        {
+            FinalizeLogout();
+        }
+
+        private static void FinalizeLogout()
+        {
+            ConnectManager.Instance?.CancelSteamTicket();
+            ConnectManager.Instance?.ResetSession();
+            EOSSDKManager.LocalDisplayName = "Player";
+            AuthPreferences.ClearSession();
+            OnLoggedOut?.Invoke();
+
+            Action<bool, string> callback = _pendingLogoutComplete;
+            _pendingLogoutComplete = null;
+            callback?.Invoke(true, null);
         }
     }
 }

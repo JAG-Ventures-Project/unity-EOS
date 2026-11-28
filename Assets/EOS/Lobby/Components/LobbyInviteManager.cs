@@ -17,14 +17,16 @@ namespace EOS.Lobby
         private readonly ILobby _lobby;
         private readonly ICrossPlayFriendsStore _friendsStore;
 
-        private readonly Dictionary<string, LobbyInviteModel> _pendingInvites = new();
+        private readonly List<LobbyInviteModel> _pendingInvites = new();
+        private readonly Dictionary<string, LobbyInviteModel> _invitesById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, LobbyInviteModel> _invitesByInviter = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<PendingOutgoingInvite> _pendingOutgoingQueue = new();
         private bool _isCreatingLobby;
 
         private string _pendingAcceptInviteId;
         private Action<bool, string> _pendingAcceptCallback;
 
-        public IReadOnlyList<LobbyInviteModel> PendingInvites => new List<LobbyInviteModel>(_pendingInvites.Values);
+        public IReadOnlyList<LobbyInviteModel> PendingInvites => _pendingInvites;
 
         public event Action<LobbyInviteModel> OnInviteReceived;
         public event Action<string> OnInviteRemoved;
@@ -40,6 +42,7 @@ namespace EOS.Lobby
             _lobby = lobby;
             _friendsStore = friendsStore;
             Assert.IsNotNull(_lobby, "[LobbyInviteManager] ILobby must not be null.");
+            Assert.IsNotNull(_friendsStore, "[LobbyInviteManager] ICrossPlayFriendsStore must not be null.");
 
             _lobby.OnLobbyInviteReceived += HandleLobbyInviteReceived;
         }
@@ -115,24 +118,24 @@ namespace EOS.Lobby
         {
             Assert.IsFalse(string.IsNullOrEmpty(inviteId), "[LobbyInviteManager] inviteId must not be null or empty.");
 
-            if (_pendingInvites.TryGetValue(inviteId, out LobbyInviteModel invite))
-            {
-                if (invite.InviterUserId != null && _friendsStore != null && _friendsStore.IsBlocked(invite.InviterUserId.ToString()))
+                if (_invitesById.TryGetValue(inviteId, out LobbyInviteModel invite))
                 {
-                    DeclineInvite(inviteId, null);
-                    onComplete?.Invoke(false, "Cannot accept an invite from a blocked player.");
-                    return;
-                }
+                    if (invite.InviterUserId != null && _friendsStore.IsBlocked(invite.InviterUserId.ToString()))
+                    {
+                        DeclineInvite(inviteId, null);
+                        onComplete?.Invoke(false, "Cannot accept an invite from a blocked player.");
+                        return;
+                    }
 
-                if (invite.IsFull)
-                {
-                    onComplete?.Invoke(false, "Lobby is full.");
-                    return;
+                    if (invite.IsFull)
+                    {
+                        onComplete?.Invoke(false, "Lobby is full.");
+                        return;
+                    }
                 }
-            }
 
             // Flush and save cloud cross-play data before switching lobbies
-            _friendsStore?.Save();
+            _friendsStore.Save();
 
             if (_lobby.IsInLobby)
             {
@@ -172,20 +175,20 @@ namespace EOS.Lobby
             _pendingExecuteInviteId = null;
             _pendingExecuteCallback = null;
 
-            if (success && !string.IsNullOrEmpty(inviteId))
+            bool removeInvite = success ||
+                (error != null &&
+                 (error.IndexOf("NotFound", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                  error.IndexOf("already started", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (removeInvite && !string.IsNullOrEmpty(inviteId))
             {
-                _pendingInvites.Remove(inviteId);
+                RemoveInviteById(inviteId);
                 OnInviteRemoved?.Invoke(inviteId);
+            }
 
-                // if joining an in-progress game match, auto-connect client directly to host if not already connecting
-                if (_lobby.HasGameStarted && !NetworkService.Current.IsClientActive && !NetworkService.Current.IsClientConnected && !string.IsNullOrEmpty(error))
-                {
-                    if (_lobby.AllowJoinInProgress)
-                    {
-                        FriendsOverlayManager.Instance?.PersistForGameScene();
-                    }
-                    NetworkService.Current.StartClient(error);
-                }
+            // if joining an in-progress game match, auto-connect client directly to host if not already connecting
+            if (success && _lobby.HasGameStarted && !NetworkService.Current.IsClientActive && !NetworkService.Current.IsClientConnected && !string.IsNullOrEmpty(error))
+            {
+                NetworkService.Current.StartClient(error);
             }
 
             callback?.Invoke(success, error);
@@ -195,32 +198,58 @@ namespace EOS.Lobby
         {
             Assert.IsFalse(string.IsNullOrEmpty(inviteId), "[LobbyInviteManager] inviteId must not be null or empty.");
 
-            _pendingInvites.Remove(inviteId);
+            RemoveInviteById(inviteId);
             OnInviteRemoved?.Invoke(inviteId);
             _lobby.RejectInvite(inviteId, onComplete);
+        }
+
+        public void RemoveInviteFromPlayer(string inviterPuid)
+        {
+            if (string.IsNullOrEmpty(inviterPuid) || !_invitesByInviter.TryGetValue(inviterPuid, out LobbyInviteModel existing))
+            {
+                return;
+            }
+
+            RemoveInviteInternal(existing);
+            if (!string.Equals(existing.InviteId, _pendingExecuteInviteId, StringComparison.Ordinal))
+            {
+                _lobby.RejectInvite(existing.InviteId, null);
+            }
+            OnInviteRemoved?.Invoke(existing.InviteId);
         }
 
         public void ClearAllInvites()
         {
             _pendingInvites.Clear();
+            _invitesById.Clear();
+            _invitesByInviter.Clear();
         }
 
         private void HandleLobbyInviteReceived(LobbyInviteCallbackData data)
         {
             if (data == null || string.IsNullOrEmpty(data.InviteId)) return;
 
-            // Blocked user isolation: Automatically reject and suppress any invites from blocked users
-            if (_friendsStore.IsBlocked(data.InviterUserId.ToString()))
+            if (_lobby.IsInLobby && _lobby.CurrentLobbyId == data.LobbyId)
             {
-                Debug.Log($"[LobbyInviteManager] Suppressed and rejected lobby invite from blocked player: {data.InviterUserId}");
                 _lobby.RejectInvite(data.InviteId, null);
                 return;
             }
 
             string inviterPuidStr = data.InviterUserId != null ? data.InviterUserId.ToString() : string.Empty;
-            if (FriendsManager.Instance != null && FriendsManager.Instance.IsPendingJoinRequestTarget(inviterPuidStr))
+
+            // Blocked user isolation: Automatically reject and suppress any invites from blocked users
+                if (!string.IsNullOrEmpty(inviterPuidStr) && _friendsStore.IsBlocked(inviterPuidStr))
+                {
+                    Debug.Log($"[LobbyInviteManager] Suppressed and rejected lobby invite from blocked player: {data.InviterUserId}");
+                    _lobby.RejectInvite(data.InviteId, null);
+                    return;
+                }
+
+            if (FriendsManager.Instance.IsPendingJoinRequestTarget(inviterPuidStr))
             {
                 FriendsManager.Instance.ClearPendingJoinRequest(inviterPuidStr);
+                FriendsManager.Instance.RemoveIncomingJoinRequest(inviterPuidStr);
+                RemoveInviteFromPlayer(inviterPuidStr);
                 NotificationManager.Show("Join request accepted! Joining lobby...", NotificationType.Normal);
                 AcceptInvite(data.InviteId, null);
                 return;
@@ -229,10 +258,10 @@ namespace EOS.Lobby
             string inviterName = data.InviterDisplayName;
             if (string.IsNullOrWhiteSpace(inviterName) || inviterName == "Unknown Player" || inviterName == "Player")
             {
-                if (_friendsStore.TryGetFriend(data.InviterUserId.ToString(), out CrossPlayFriendEntry friend))
-                {
-                    inviterName = friend.displayName;
-                }
+                    if (!string.IsNullOrEmpty(inviterPuidStr) && _friendsStore.TryGetFriend(inviterPuidStr, out CrossPlayFriendEntry friend))
+                    {
+                        inviterName = friend.displayName;
+                    }
             }
 
             if (string.IsNullOrWhiteSpace(inviterName))
@@ -253,7 +282,32 @@ namespace EOS.Lobby
                 ReceivedAt = DateTime.UtcNow
             };
 
-            _pendingInvites[data.InviteId] = inviteModel;
+                if (!string.IsNullOrEmpty(inviterPuidStr))
+                {
+                        FriendsManager.Instance.RemoveIncomingJoinRequest(inviterPuidStr);
+
+                    if (_invitesByInviter.TryGetValue(inviterPuidStr, out LobbyInviteModel previousByInviter))
+                    {
+                        RemoveInviteInternal(previousByInviter);
+                        if (previousByInviter.InviteId != data.InviteId)
+                        {
+                            _lobby.RejectInvite(previousByInviter.InviteId, null);
+                        }
+                    }
+                }
+
+                    if (_invitesById.TryGetValue(data.InviteId, out LobbyInviteModel previousById))
+                    {
+                        RemoveInviteInternal(previousById);
+                    }
+
+            _pendingInvites.Add(inviteModel);
+            _invitesById[data.InviteId] = inviteModel;
+            if (!string.IsNullOrEmpty(inviterPuidStr))
+            {
+                _invitesByInviter[inviterPuidStr] = inviteModel;
+            }
+
             OnInviteReceived?.Invoke(inviteModel);
 
             NotificationManager.Show($"{inviteModel.InviterDisplayName} invited you to a room.", NotificationType.Normal);
@@ -261,13 +315,31 @@ namespace EOS.Lobby
 
         public void Dispose()
         {
-            if (_lobby != null)
-            {
-                _lobby.OnLobbyInviteReceived -= HandleLobbyInviteReceived;
-            }
-
-            _pendingInvites.Clear();
+            _lobby.OnLobbyInviteReceived -= HandleLobbyInviteReceived;
+            ClearAllInvites();
             _pendingOutgoingQueue.Clear();
+        }
+
+        private void RemoveInviteById(string inviteId)
+        {
+                if (_invitesById.TryGetValue(inviteId, out LobbyInviteModel invite))
+                {
+                    RemoveInviteInternal(invite);
+                }
+        }
+
+        private void RemoveInviteInternal(LobbyInviteModel invite)
+        {
+                _invitesById.Remove(invite.InviteId);
+            if (invite.InviterUserId != null)
+            {
+                string inviterPuid = invite.InviterUserId.ToString();
+                if (_invitesByInviter.TryGetValue(inviterPuid, out LobbyInviteModel current) && current == invite)
+                {
+                    _invitesByInviter.Remove(inviterPuid);
+                }
+            }
+            _pendingInvites.Remove(invite);
         }
     }
 }

@@ -25,7 +25,6 @@ namespace EOS.Lobby
         [SerializeField] private uint maxLobbyMembers = 4;
         [SerializeField] private bool allowJoinInProgress = false;
         [SerializeField] private bool useShortJoinCode = true;
-        [SerializeField] private bool allowAutoRejoin = true;
 
         [Header("In-Lobby View Controls")]
         [SerializeField] private TextMeshProUGUI roomCodeText;
@@ -118,7 +117,6 @@ namespace EOS.Lobby
 
             _lobby.AllowJoinInProgress = allowJoinInProgress;
             _lobby.UseShortJoinCode = useShortJoinCode;
-            _lobby.AllowAutoRejoin = allowAutoRejoin;
 
             if (_lobby.IsAutoRejoining)
             {
@@ -176,27 +174,21 @@ namespace EOS.Lobby
 
             NetworkService.Current.OnUnexpectedClientDisconnect -= HandleUnexpectedClientDisconnect;
 
-            if (_lobby != null)
-            {
-                _lobby.OnLobbyCreated -= HandleOnLobbyCreated;
-                _lobby.OnLobbyJoined -= HandleOnLobbyJoined;
-                _lobby.OnLobbyLeft -= HandleOnLobbyLeft;
-                _lobby.OnPlayerJoined -= HandleOnPlayerJoined;
-                _lobby.OnPlayerLeft -= HandleOnPlayerLeft;
-                _lobby.OnLobbyError -= HandleOnLobbyError;
-                _lobby.OnGameStarted -= HandleOnGameStarted;
-                _lobby.OnReadyStatusChanged -= HandleOnReadyStatusChanged;
-                _lobby.OnLobbyUpdated -= HandleOnLobbyUpdated;
-                _lobby.OnAutoRejoinStateChanged -= HandleAutoRejoinStateChanged;
-            }
+            _lobby.OnLobbyCreated -= HandleOnLobbyCreated;
+            _lobby.OnLobbyJoined -= HandleOnLobbyJoined;
+            _lobby.OnLobbyLeft -= HandleOnLobbyLeft;
+            _lobby.OnPlayerJoined -= HandleOnPlayerJoined;
+            _lobby.OnPlayerLeft -= HandleOnPlayerLeft;
+            _lobby.OnLobbyError -= HandleOnLobbyError;
+            _lobby.OnGameStarted -= HandleOnGameStarted;
+            _lobby.OnReadyStatusChanged -= HandleOnReadyStatusChanged;
+            _lobby.OnLobbyUpdated -= HandleOnLobbyUpdated;
+            _lobby.OnAutoRejoinStateChanged -= HandleAutoRejoinStateChanged;
 
             for (int i = 0; i < _cardPool.Count; i++)
             {
-                if (_cardPool[i] != null)
-                {
-                    _cardPool[i].OnKickClicked -= HandleOnKickPlayerClicked;
-                    _cardPool[i].OnAddFriendClicked -= HandleOnAddFriendClicked;
-                }
+                _cardPool[i].OnKickClicked -= HandleOnKickPlayerClicked;
+                _cardPool[i].OnAddFriendClicked -= HandleOnAddFriendClicked;
             }
         }
 
@@ -205,7 +197,6 @@ namespace EOS.Lobby
             SetMenuButtonsInteractable(false);
             _lobby.AllowJoinInProgress = allowJoinInProgress;
             _lobby.UseShortJoinCode = useShortJoinCode;
-            _lobby.AllowAutoRejoin = allowAutoRejoin;
             _lobby.CreateLobby(maxLobbyMembers);
         }
 
@@ -272,8 +263,6 @@ namespace EOS.Lobby
         {
             SetLobbyButtonsInteractable(false);
 
-            FriendsOverlayManager.Instance?.PersistForGameScene();
-
             NetworkService.Current.StartHost(nextSceneName);
 
             // Signal other players via EOS Lobby that match has started
@@ -298,8 +287,6 @@ namespace EOS.Lobby
             }
 
             SetLobbyButtonsInteractable(false);
-
-            FriendsOverlayManager.Instance?.PersistForGameScene();
 
             NotificationManager.Show("Match is starting...", NotificationType.Normal);
             NetworkService.Current.StartClient(hostAddress);
@@ -389,7 +376,7 @@ namespace EOS.Lobby
 
         private void HandleUnexpectedClientDisconnect()
         {
-            if (_lobby != null && _lobby.IsAutoRejoining)
+            if (_lobby.IsAutoRejoining)
             {
                 return;
             }
@@ -410,11 +397,11 @@ namespace EOS.Lobby
                 return;
             }
 
-            if (_lobby != null && _lobby.IsInLobby && !_lobby.HasGameStarted)
+            if (_lobby.IsInLobby && !_lobby.HasGameStarted)
             {
                 RestoreInLobbyUI();
             }
-            else if (_lobby == null || !_lobby.IsInLobby)
+            else if (!_lobby.IsInLobby)
             {
                 SetPanelState(isInLobby: false);
                 SetMenuButtonsInteractable(true);
@@ -447,10 +434,7 @@ namespace EOS.Lobby
 
         private void UpdateMemberCountDisplay()
         {
-            if (memberCountText != null && _lobby != null)
-            {
-                memberCountText.text = $"{_lobby.CurrentMemberCount} / {maxLobbyMembers}";
-            }
+            memberCountText.SetText("{0} / {1}", _lobby.CurrentMemberCount, maxLobbyMembers);
         }
 
         #region Player Cards Management
@@ -509,7 +493,6 @@ namespace EOS.Lobby
 
         private void SubscribeFriendsEvents()
         {
-            if (!FriendsManager.HasInstance) return;
             FriendsManager.Instance.OnFriendsListUpdated -= HandleFriendsListUpdated;
             FriendsManager.Instance.OnFriendsListUpdated += HandleFriendsListUpdated;
         }
@@ -538,7 +521,7 @@ namespace EOS.Lobby
             string targetPuid = targetUserId.ToString();
             string displayName = _lobby.GetMemberDisplayName(targetUserId);
 
-            FriendsManager.Instance?.SendFriendRequest(targetPuid, displayName, LoginProvider.None, HandleAddFriendCompleted);
+            FriendsManager.Instance.SendFriendRequest(targetPuid, displayName, LoginProvider.None, HandleAddFriendCompleted);
         }
 
         private void HandleAddFriendCompleted(bool success, string message)

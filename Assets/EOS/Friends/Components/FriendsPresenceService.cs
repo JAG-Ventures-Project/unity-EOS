@@ -24,7 +24,8 @@ namespace EOS.Friends
         private readonly Dictionary<string, FriendPresenceState> _peerPresence = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _peerLobbyId = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _peerHostAddress = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, string> _peerJoinCode = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _lobbyMemberPuidsBuffer = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _lobbyMemberNamesBuffer = new(StringComparer.OrdinalIgnoreCase);
 
         private float _lastHeartbeatTimer;
         private FriendPresenceState _lastLocalPresence = FriendPresenceState.Offline;
@@ -91,8 +92,6 @@ namespace EOS.Friends
 
         public void PingAllFriends(IReadOnlyList<FriendModel> allFriends, bool useLobbySystem, ILobby activeLobby)
         {
-            if (allFriends == null) return;
-
             for (int i = 0; i < allFriends.Count; i++)
             {
                 FriendModel friend = allFriends[i];
@@ -100,6 +99,30 @@ namespace EOS.Friends
                 {
                     PingFriend(friend.ProductUserId, useLobbySystem, activeLobby);
                 }
+            }
+        }
+
+        public void BroadcastOffline(IReadOnlyList<FriendModel> allFriends)
+        {
+            if (_signalChannel == null || !_signalChannel.IsActive) return;
+
+            var offlineSignal = new FriendSignal
+            {
+                id = Guid.NewGuid().ToString("N"),
+                type = FriendSignalType.PresencePong,
+                senderName = EOSSDKManager.LocalDisplayName ?? "Player",
+                senderPlatform = (int)LocalPlayerIdentity.CurrentPlatform,
+                createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                presenceState = (int)FriendPresenceState.Offline
+            };
+
+            for (int i = 0; i < allFriends.Count; i++)
+            {
+                string targetPuid = allFriends[i].ProductUserId;
+                if (string.IsNullOrEmpty(targetPuid) || !IsPeerFresh(targetPuid) || _friendsStore.IsBlocked(targetPuid)) continue;
+
+                offlineSignal.targetPuid = targetPuid;
+                _signalChannel.Send(targetPuid, offlineSignal);
             }
         }
 
@@ -117,11 +140,11 @@ namespace EOS.Friends
 
         public void UpdateLobbyPresenceInPlace(List<FriendModel> allFriends, bool useLobbySystem, ILobby activeLobby)
         {
-            if (!useLobbySystem || allFriends == null) return;
+            if (!useLobbySystem) return;
 
             bool inLobby = activeLobby != null && activeLobby.IsInLobby;
             bool gameStarted = inLobby && activeLobby.HasGameStarted;
-            var lobbyMemberPuids = CollectLobbyMemberPuids(activeLobby, inLobby);
+            HashSet<string> lobbyMemberPuids = CollectLobbyMemberInfo(activeLobby, inLobby, out _);
 
             for (int i = 0; i < allFriends.Count; i++)
             {
@@ -143,30 +166,29 @@ namespace EOS.Friends
             bool inLobby,
             out HashSet<string> lobbyMemberNames)
         {
-            lobbyMemberNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var lobbyMemberPuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _lobbyMemberPuidsBuffer.Clear();
+            _lobbyMemberNamesBuffer.Clear();
+            lobbyMemberNames = _lobbyMemberNamesBuffer;
 
-            if (!inLobby || activeLobby == null) return lobbyMemberPuids;
+            if (!inLobby || activeLobby == null) return _lobbyMemberPuidsBuffer;
 
             List<ProductUserId> members = activeLobby.GetCurrentMemberUserIds();
-            if (members == null) return lobbyMemberPuids;
-
             for (int m = 0; m < members.Count; m++)
             {
                 if (members[m] == null) continue;
 
                 string puidStr = members[m].ToString();
-                lobbyMemberPuids.Add(puidStr);
+                _lobbyMemberPuidsBuffer.Add(puidStr);
                 _onlinePuids[puidStr] = DateTime.UtcNow;
 
                 string name = activeLobby.GetMemberDisplayName(members[m]);
                 if (!string.IsNullOrWhiteSpace(name) && !name.Equals("Player", StringComparison.OrdinalIgnoreCase))
                 {
-                    lobbyMemberNames.Add(name);
+                    _lobbyMemberNamesBuffer.Add(name);
                 }
             }
 
-            return lobbyMemberPuids;
+            return _lobbyMemberPuidsBuffer;
         }
 
         public FriendPresenceState ResolveFriendPresence(
@@ -199,12 +221,12 @@ namespace EOS.Friends
                 return FriendPresenceState.Online;
             }
 
-            return nativeFallback != FriendPresenceState.Offline ? nativeFallback : FriendPresenceState.Offline;
+            return nativeFallback;
         }
 
         public void PopulatePeerLobbyInfo(FriendModel model)
         {
-            if (model == null || string.IsNullOrEmpty(model.ProductUserId)) return;
+            if (string.IsNullOrEmpty(model.ProductUserId)) return;
 
             if (_peerLobbyId.TryGetValue(model.ProductUserId, out string lobbyId))
             {
@@ -223,18 +245,25 @@ namespace EOS.Friends
             _peerPresence.Clear();
             _peerLobbyId.Clear();
             _peerHostAddress.Clear();
-            _peerJoinCode.Clear();
             _lastHeartbeatTimer = 0f;
             _lastLocalPresence = FriendPresenceState.Offline;
         }
 
         private void RecordPeerPresence(string senderPuid, FriendSignal signal)
         {
+            var state = (FriendPresenceState)signal.presenceState;
             _onlinePuids[senderPuid] = DateTime.UtcNow;
-            _peerPresence[senderPuid] = (FriendPresenceState)signal.presenceState;
+            _peerPresence[senderPuid] = state;
+
+            if (state == FriendPresenceState.Offline)
+            {
+                _peerLobbyId.Remove(senderPuid);
+                _peerHostAddress.Remove(senderPuid);
+                return;
+            }
+
             if (!string.IsNullOrEmpty(signal.lobbyId)) _peerLobbyId[senderPuid] = signal.lobbyId;
             if (!string.IsNullOrEmpty(signal.hostAddress)) _peerHostAddress[senderPuid] = signal.hostAddress;
-            if (!string.IsNullOrEmpty(signal.joinCode)) _peerJoinCode[senderPuid] = signal.joinCode;
         }
 
         private FriendSignal BuildPresenceSignal(FriendSignalType type, string targetPuid, bool useLobbySystem, ILobby activeLobby)
@@ -253,27 +282,6 @@ namespace EOS.Friends
                 hostAddress = lobby?.CurrentHostAddress ?? ConnectManager.Instance?.LocalProductUserIdString,
                 joinCode = lobby?.CurrentJoinCode
             };
-        }
-
-        private HashSet<string> CollectLobbyMemberPuids(ILobby activeLobby, bool inLobby)
-        {
-            var lobbyMemberPuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (!inLobby || activeLobby == null) return lobbyMemberPuids;
-
-            List<ProductUserId> members = activeLobby.GetCurrentMemberUserIds();
-            if (members == null) return lobbyMemberPuids;
-
-            for (int i = 0; i < members.Count; i++)
-            {
-                if (members[i] != null)
-                {
-                    string puid = members[i].ToString();
-                    lobbyMemberPuids.Add(puid);
-                    _onlinePuids[puid] = DateTime.UtcNow;
-                }
-            }
-
-            return lobbyMemberPuids;
         }
 
         private FriendPresenceState ResolveFallbackPeerPresence(string key)

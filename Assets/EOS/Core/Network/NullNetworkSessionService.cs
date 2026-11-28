@@ -11,6 +11,7 @@ namespace EOS.Core
         public bool IsServerActive => false;
         public bool IsClientConnected => false;
         public bool IsClientActive => false;
+        public bool AutoRejoinMatch => false;
 
         public event Action OnUnexpectedClientDisconnect
         {

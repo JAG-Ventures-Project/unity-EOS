@@ -1,7 +1,6 @@
 using System;
 using EOS.Auth;
 using EOS.Core;
-using EOS.Friends;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Lobby;
 using UnityEngine;
@@ -380,7 +379,6 @@ namespace EOS.Lobby
             if (!NetworkService.Current.IsClientActive && !NetworkService.Current.IsClientConnected)
             {
                 Debug.Log($"[LobbyRejoinService] Internet/lobby reachable. Auto-reconnecting to host {hostAddress}...");
-                FriendsOverlayManager.Instance?.PersistForGameScene();
                 NetworkService.Current.StartClient(hostAddress);
             }
         }

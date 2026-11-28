@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using EOS.Auth;
 using System.Collections.Generic;
 using Epic.OnlineServices;
@@ -17,7 +17,6 @@ namespace EOS.Friends
         bool IsRefreshing { get; }
 
         event Action OnFriendsListUpdated;
-        event Action<FriendModel> OnFriendStatusChanged;
 
         void Initialize();
         void RefreshFriends(Action onComplete = null);

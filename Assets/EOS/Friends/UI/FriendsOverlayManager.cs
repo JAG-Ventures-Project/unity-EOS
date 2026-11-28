@@ -1,6 +1,5 @@
 using System.Collections;
 using EOS.Auth;
-using EOS.Lobby;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -89,6 +88,7 @@ namespace EOS.Friends
             _friendsListView = GetComponentInChildren<FriendsListController>(true);
             if (overlayMenu == null) Debug.LogWarning("[FriendsOverlayManager] overlayMenu reference is missing.", this);
             if (canvasGroup == null) Debug.LogWarning("[FriendsOverlayManager] canvasGroup reference is missing.", this);
+            if (localAvatarImage == null) Debug.LogWarning("[FriendsOverlayManager] localAvatarImage reference is missing.", this);
             if (localUserNameText == null) Debug.LogWarning("[FriendsOverlayManager] localUserNameText reference is missing.", this);
             if (copyUserCodeButton == null) Debug.LogWarning("[FriendsOverlayManager] copyUserCodeButton reference is missing.", this);
             if (copyUserCodeText == null) Debug.LogWarning("[FriendsOverlayManager] copyUserCodeText reference is missing.", this);
@@ -106,6 +106,8 @@ namespace EOS.Friends
             if (searchButton == null) Debug.LogWarning("[FriendsOverlayManager] searchButton reference is missing.", this);
             if (bottomSectionLayoutGroup == null) Debug.LogWarning("[FriendsOverlayManager] bottomSectionLayoutGroup reference is missing.", this);
             if (_friendsListView == null) Debug.LogWarning("[FriendsOverlayManager] FriendsListController missing in children.", this);
+            if (openButton == null) Debug.LogWarning("[FriendsOverlayManager] openButton is missing.", this);
+            if (closeButton == null) Debug.LogWarning("[FriendsOverlayManager] closeButton is missing.", this);
 
             friendsSubMenuContainer.SetActive(false);
             searchContainer.SetActive(false);
@@ -118,19 +120,26 @@ namespace EOS.Friends
 
             if (Instance != null && Instance != this)
             {
-                DestroyImmediate(this);
+                DestroyImmediate(openButton.GetComponentInParent<Canvas>().gameObject);
+                DestroyImmediate(gameObject);
                 return;
             }
             Instance = this;
-            DontDestroyOnLoad(this);
+
+            GameObject openButtonCanvas = openButton.GetComponentInParent<Canvas>().gameObject;
+            openButtonCanvas.transform.SetParent(null);
+            DontDestroyOnLoad(openButtonCanvas);
+            transform.SetParent(null);
+            DontDestroyOnLoad(gameObject);
 
             LogoutManager.OnLogoutInitiated += HandleLoggedOut;
             SessionAuthCoordinator.OnLoggedOut += HandleLoggedOut;
 
-            _identity ??= new LocalPlayerIdentity();
+            _friendsListView = GetComponentInChildren<FriendsListController>(true);
+            _identity = new LocalPlayerIdentity();
             _friendsService = FriendsManager.Instance;
             _lobbyInviteService = FriendsManager.Instance.LobbyInvites;
-            _actionExecutor ??= new FriendActionExecutor();
+            _actionExecutor = new FriendActionExecutor();
             _actionExecutor.Initialize(_friendsService, _lobbyInviteService);
 
             _headerView = new FriendsOverlayHeaderView(
@@ -187,12 +196,13 @@ namespace EOS.Friends
             _headerView.RefreshHeader();
             ApplyTabSelection(FriendsTabType.Friends);
             UpdateNotificationBadge();
-            _friendsService.RefreshFriends(HandleRefreshCompleted);
+            _friendsService.RefreshFriends(RefreshBadgeAndVisibleList);
             FriendsManager.Instance.PingAllFriends();
         }
 
         private void OnEnable()
         {
+            if (Instance != this) return;
             SubscribeServices();
         }
 
@@ -230,6 +240,8 @@ namespace EOS.Friends
 
         private void OnDisable()
         {
+            if (Instance != this) return;
+
             if (_pingCoroutine != null)
             {
                 StopCoroutine(_pingCoroutine);
@@ -248,8 +260,6 @@ namespace EOS.Friends
             LogoutManager.OnLogoutInitiated -= HandleLoggedOut;
             SessionAuthCoordinator.OnLoggedOut -= HandleLoggedOut;
 
-            UnsubscribeServices();
-
             _panelView.OnTabClicked -= SelectTab;
             _panelView.OnFilterClicked -= SelectFriendsFilter;
             _panelView.OnOpenClicked -= OpenOverlay;
@@ -262,32 +272,19 @@ namespace EOS.Friends
 
         private void SubscribeServices()
         {
-            _actionExecutor.OnActionExecuted += HandleActionExecuted;
-            _friendsService.OnFriendsListUpdated += HandleFriendsListUpdated;
-            _friendsService.OnFriendStatusChanged += HandleFriendStatusChanged;
+            _actionExecutor.OnActionExecuted += RefreshBadgeAndVisibleList;
+            _friendsService.OnFriendsListUpdated += RefreshBadgeAndVisibleList;
             _lobbyInviteService.OnInviteReceived += HandleLobbyInviteReceived;
             _lobbyInviteService.OnInviteRemoved += HandleLobbyInviteRemoved;
-
-            if (useLobbySystem && LobbyManager.Instance != null)
-            {
-                LobbyManager.Instance.OnGameStarted -= HandleGameStarted;
-                LobbyManager.Instance.OnGameStarted += HandleGameStarted;
-            }
         }
 
         private void UnsubscribeServices()
         {
-            _actionExecutor.OnActionExecuted -= HandleActionExecuted;
-            _friendsService.OnFriendsListUpdated -= HandleFriendsListUpdated;
-            _friendsService.OnFriendStatusChanged -= HandleFriendStatusChanged;
+            _actionExecutor.OnActionExecuted -= RefreshBadgeAndVisibleList;
+            _friendsService.OnFriendsListUpdated -= RefreshBadgeAndVisibleList;
 
             _lobbyInviteService.OnInviteReceived -= HandleLobbyInviteReceived;
             _lobbyInviteService.OnInviteRemoved -= HandleLobbyInviteRemoved;
-
-            if (useLobbySystem && LobbyManager.Instance != null)
-            {
-                LobbyManager.Instance.OnGameStarted -= HandleGameStarted;
-            }
         }
 
         public void SelectTab(FriendsTabType tab)
@@ -322,7 +319,7 @@ namespace EOS.Friends
         {
             _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
             UpdateNotificationBadge();
-            _friendsService.RefreshFriends(HandleRefreshCompleted);
+            _friendsService.RefreshFriends(RefreshBadgeAndVisibleList);
             FriendsManager.Instance.PingAllFriends();
         }
 
@@ -337,8 +334,11 @@ namespace EOS.Friends
 
         public void CloseOverlay()
         {
-            StopCoroutine(_pingCoroutine);
-            _pingCoroutine = null;
+            if (_pingCoroutine != null)
+            {
+                StopCoroutine(_pingCoroutine);
+                _pingCoroutine = null;
+            }
 
             _panelView.Close(HandleClearSelection);
         }
@@ -353,16 +353,6 @@ namespace EOS.Friends
             {
                 OpenOverlay();
             }
-        }
-
-        public void PersistForGameScene()
-        {
-            _friendsListView.ClearSelection();
-
-            Canvas canvas = GetComponentInParent<Canvas>();
-            GameObject rootObject = canvas != null ? canvas.gameObject : gameObject;
-            rootObject.transform.SetParent(null);
-            DontDestroyOnLoad(rootObject);
         }
 
         public void OnPointerDown(PointerEventData eventData) => _friendsListView.ClearSelection();
@@ -383,10 +373,8 @@ namespace EOS.Friends
         }
 
         private void HandleClearSelection() => _friendsListView.ClearSelection();
-
-        private void HandleRefreshCompleted() => RefreshBadgeAndVisibleList();
-        private void HandleFriendsListUpdated() => RefreshBadgeAndVisibleList();
-        private void HandleFriendStatusChanged(FriendModel model) => RefreshBadgeAndVisibleList();
+        private void HandleLobbyInviteReceived(LobbyInviteModel invite) => RefreshBadgeAndNotificationsTab();
+        private void HandleLobbyInviteRemoved(string inviteId) => RefreshBadgeAndNotificationsTab();
 
         private void RefreshBadgeAndVisibleList()
         {
@@ -394,48 +382,22 @@ namespace EOS.Friends
             _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
         }
 
-        private void HandleLobbyInviteReceived(LobbyInviteModel invite)
+        private void RefreshBadgeAndNotificationsTab()
         {
             UpdateNotificationBadge();
             if (_currentTab == FriendsTabType.Notifications)
             {
                 _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
-            }
-        }
-
-        private void HandleLobbyInviteRemoved(string inviteId)
-        {
-            UpdateNotificationBadge();
-            if (_currentTab == FriendsTabType.Notifications)
-            {
-                _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
-            }
-        }
-
-        private void HandleActionExecuted()
-        {
-            UpdateNotificationBadge();
-            _searchPresenter.PopulateTab(_currentTab, _currentFriendsFilter);
-        }
-
-        private void HandleGameStarted(string hostAddress)
-        {
-            if (useLobbySystem && LobbyManager.Instance != null && LobbyManager.Instance.AllowJoinInProgress)
-            {
-                PersistForGameScene();
             }
         }
 
         private void HandleLoggedOut()
         {
-            if (Instance == this)
-            {
-                Instance = null;
-            }
+            LogoutManager.OnLogoutInitiated -= HandleLoggedOut;
+            SessionAuthCoordinator.OnLoggedOut -= HandleLoggedOut;
 
-            Canvas canvas = GetComponentInParent<Canvas>();
-            GameObject toDestroy = canvas != null ? canvas.gameObject : gameObject;
-            Destroy(toDestroy);
+            Destroy(openButton.GetComponentInParent<Canvas>().gameObject);
+            Destroy(gameObject);
         }
     }
 }

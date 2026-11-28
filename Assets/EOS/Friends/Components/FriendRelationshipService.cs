@@ -49,41 +49,35 @@ namespace EOS.Friends
                 if (_friendsStore.IsPendingOutgoing(identifier)) return FriendRelationStatus.PendingOutgoing;
             }
 
-            if (allFriends != null)
+            for (int i = 0; i < allFriends.Count; i++)
             {
-                for (int i = 0; i < allFriends.Count; i++)
+                FriendModel friend = allFriends[i];
+                if (!string.IsNullOrEmpty(identifier) && (
+                    string.Equals(friend.ProductUserId, identifier, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(friend.PlatformUserId, identifier, StringComparison.OrdinalIgnoreCase)))
                 {
-                    FriendModel friend = allFriends[i];
-                    if (!string.IsNullOrEmpty(identifier) && (
-                        string.Equals(friend.ProductUserId, identifier, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(friend.PlatformUserId, identifier, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        return friend.Status;
-                    }
-                    if (!string.IsNullOrEmpty(displayName) &&
-                        string.Equals(friend.DisplayName, displayName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return friend.Status;
-                    }
+                    return friend.Status;
+                }
+                if (!string.IsNullOrEmpty(displayName) &&
+                    string.Equals(friend.DisplayName, displayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return friend.Status;
                 }
             }
 
-            if (cachedPlatformFriends != null)
+            for (int i = 0; i < cachedPlatformFriends.Count; i++)
             {
-                for (int i = 0; i < cachedPlatformFriends.Count; i++)
+                PlatformFriend pf = cachedPlatformFriends[i];
+                if (!string.IsNullOrEmpty(identifier) && (
+                    string.Equals(pf.PlatformUserId, identifier, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(pf.ProductUserId, identifier, StringComparison.OrdinalIgnoreCase)))
                 {
-                    PlatformFriend pf = cachedPlatformFriends[i];
-                    if (!string.IsNullOrEmpty(identifier) && (
-                        string.Equals(pf.PlatformUserId, identifier, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(pf.ProductUserId, identifier, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        return FriendRelationStatus.Platform;
-                    }
-                    if (!string.IsNullOrEmpty(displayName) &&
-                        string.Equals(pf.DisplayName, displayName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return FriendRelationStatus.Platform;
-                    }
+                    return FriendRelationStatus.Platform;
+                }
+                if (!string.IsNullOrEmpty(displayName) &&
+                    string.Equals(pf.DisplayName, displayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return FriendRelationStatus.Platform;
                 }
             }
 
@@ -228,7 +222,6 @@ namespace EOS.Friends
                     {
                         // Mutual healing: We already consider sender a friend, but sender does not have us in their list.
                         FriendSignal autoAccept = CreateRelationshipSignal(FriendSignalType.RequestAccepted, senderPuid);
-                        autoAccept.senderPlatform = (int)LocalPlayerIdentity.CurrentPlatform;
                         _signalChannel?.Send(senderPuid, autoAccept);
                         return;
                     }
@@ -292,7 +285,7 @@ namespace EOS.Friends
                     _signalChannel?.Send(signalToSend.targetPuid, signalToSend);
                 }
 
-                _notifyListChanged?.Invoke();
+                _notifyListChanged.Invoke();
             }
 
             callback?.Invoke(success, success ? successMessage : error);
@@ -307,7 +300,7 @@ namespace EOS.Friends
         {
             if (success)
             {
-                _notifyListChanged?.Invoke();
+                _notifyListChanged.Invoke();
             }
         }
 
@@ -318,7 +311,7 @@ namespace EOS.Friends
                 id = Guid.NewGuid().ToString("N"),
                 type = type,
                 senderName = EOSSDKManager.LocalDisplayName ?? "Player",
-                senderPlatform = (int)AuthPreferences.LastLoginProvider,
+                senderPlatform = (int)LocalPlayerIdentity.CurrentPlatform,
                 targetPuid = targetPuid,
                 createdTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
