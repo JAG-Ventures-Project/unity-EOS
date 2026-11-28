@@ -284,12 +284,16 @@ namespace EOS.Friends
                             statusText.text = "Online";
                             statusText.color = onlineColor;
                             break;
+                        case FriendPresenceState.InGame:
+                            statusText.text = "In Game";
+                            statusText.color = onlineColor;
+                            break;
                         case FriendPresenceState.InLobby:
                             statusText.text = "In Lobby";
                             statusText.color = inGameColor;
                             break;
                         case FriendPresenceState.InMatch:
-                            statusText.text = "In Game";
+                            statusText.text = "In Match";
                             statusText.color = inGameColor;
                             break;
                         default:

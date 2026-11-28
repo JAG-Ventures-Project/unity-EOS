@@ -15,6 +15,7 @@
         Offline = 0,
         Online = 1,
         InLobby = 2,
-        InMatch = 3
+        InMatch = 3,
+        InGame = 4
     }
 }

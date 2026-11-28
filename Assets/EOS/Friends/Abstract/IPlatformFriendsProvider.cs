@@ -1,6 +1,7 @@
-﻿using System;
-using EOS.Auth;
+using System;
 using System.Collections.Generic;
+using EOS.Auth;
+using UnityEngine;
 
 namespace EOS.Friends
 {
@@ -9,6 +10,7 @@ namespace EOS.Friends
     {
         LoginProvider Platform { get; }
         bool IsAvailable { get; }
+        event Action<string, string, FriendPresenceState, Texture2D> OnFriendUpdated;
         void Initialize();
         void FetchFriends(Action<List<PlatformFriend>> onComplete);
         void Shutdown();

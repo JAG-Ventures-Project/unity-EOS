@@ -14,6 +14,7 @@ namespace EOS.Friends
         private readonly CanvasGroup _canvasGroup;
         private readonly Button _openButton;
         private readonly Button _closeButton;
+        private readonly Button _backGroundButton;
 
         private readonly Toggle _friendsTab;
         private readonly Toggle _notificationsTab;
@@ -59,6 +60,7 @@ namespace EOS.Friends
             CanvasGroup canvasGroup,
             Button openButton,
             Button closeButton,
+            Button backGround,
             Toggle friendsTab,
             Toggle notificationsTab,
             Toggle addFriendTab,
@@ -79,6 +81,7 @@ namespace EOS.Friends
             _canvasGroup = canvasGroup;
             _openButton = openButton;
             _closeButton = closeButton;
+            _backGroundButton = backGround;
             _friendsTab = friendsTab;
             _notificationsTab = notificationsTab;
             _addFriendTab = addFriendTab;
@@ -102,6 +105,7 @@ namespace EOS.Friends
             _crossPlaySubTab.onValueChanged.AddListener(HandleCrossPlaySubTabToggled);
             _openButton.onClick.AddListener(HandleOpenClicked);
             _closeButton.onClick.AddListener(HandleCloseClicked);
+            _backGroundButton.onClick.AddListener(HandleCloseClicked);
 
             Canvas.ForceUpdateCanvases();
             _openAnchoredX = _overlayMenu.anchoredPosition.x;
@@ -324,6 +328,7 @@ namespace EOS.Friends
             _crossPlaySubTab.onValueChanged.RemoveListener(HandleCrossPlaySubTabToggled);
             _openButton.onClick.RemoveListener(HandleOpenClicked);
             _closeButton.onClick.RemoveListener(HandleCloseClicked);
+            _backGroundButton.onClick.RemoveListener(HandleCloseClicked);
         }
     }
 }

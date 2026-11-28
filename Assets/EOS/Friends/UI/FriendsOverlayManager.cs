@@ -46,6 +46,7 @@ namespace EOS.Friends
         [Header("Overlay Visibility & Slide Animation")]
         [SerializeField] private Button openButton;
         [SerializeField] private Button closeButton;
+        [SerializeField] private Button backGround;
         [SerializeField] private RectTransform overlayMenu;
         [SerializeField] private CanvasGroup canvasGroup;
         [SerializeField] private float slideDuration = 0.25f;
@@ -108,6 +109,7 @@ namespace EOS.Friends
             if (_friendsListView == null) Debug.LogWarning("[FriendsOverlayManager] FriendsListController missing in children.", this);
             if (openButton == null) Debug.LogWarning("[FriendsOverlayManager] openButton is missing.", this);
             if (closeButton == null) Debug.LogWarning("[FriendsOverlayManager] closeButton is missing.", this);
+            if (backGround == null) Debug.LogWarning("[FriendsOverlayManager] backGround is missing.", this);
 
             friendsSubMenuContainer.SetActive(false);
             searchContainer.SetActive(false);
@@ -157,6 +159,7 @@ namespace EOS.Friends
                 canvasGroup,
                 openButton,
                 closeButton,
+                backGround,
                 friendsTab,
                 notificationsTab,
                 addFriendTab,

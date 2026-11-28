@@ -182,7 +182,11 @@ namespace EOS.Friends
             _isInitialized = true;
 
             ConfigurePlatformProvider();
-            _platformProvider?.Initialize();
+            if (_platformProvider != null)
+            {
+                _platformProvider.OnFriendUpdated += HandlePlatformFriendUpdated;
+                _platformProvider.Initialize();
+            }
             _signalChannel?.Start();
             EOSSDKManager.Instance.Service.OnTick += HandleTick;
 
@@ -450,8 +454,9 @@ namespace EOS.Friends
             {
                 FriendPresenceState.InMatch => 0,
                 FriendPresenceState.InLobby => 1,
-                FriendPresenceState.Online => 2,
-                _ => 3
+                FriendPresenceState.InGame => 2,
+                FriendPresenceState.Online => 3,
+                _ => 4
             };
         }
 
@@ -584,6 +589,7 @@ namespace EOS.Friends
         private void SubscribeLobbyEvents(ILobby lobby)
         {
             if (lobby == null) return;
+            lobby.OnLobbyCreated += HandleLobbyCreatedEvent;
             lobby.OnLobbyJoined += HandleLobbyPresenceEvent;
             lobby.OnLobbyLeft += HandleLobbyLeftEvent;
             lobby.OnPlayerJoined += HandleLobbyPlayerJoined;
@@ -595,6 +601,7 @@ namespace EOS.Friends
         private void UnsubscribeLobbyEvents(ILobby lobby)
         {
             if (lobby == null) return;
+            lobby.OnLobbyCreated -= HandleLobbyCreatedEvent;
             lobby.OnLobbyJoined -= HandleLobbyPresenceEvent;
             lobby.OnLobbyLeft -= HandleLobbyLeftEvent;
             lobby.OnPlayerJoined -= HandleLobbyPlayerJoined;
@@ -603,6 +610,8 @@ namespace EOS.Friends
             lobby.OnLobbyUpdated -= HandleLobbyUpdatedEvent;
         }
 
+        private void HandleLobbyCreatedEvent(string _) => NotifyLocalLobbyPresenceChanged();
+
         private void HandleLobbyPresenceEvent(string hostAddress)
         {
             if (!string.IsNullOrEmpty(hostAddress))
@@ -610,12 +619,12 @@ namespace EOS.Friends
                 _inviteHandler.RemoveIncomingJoinRequest(hostAddress);
                 _inviteService.RemoveInviteFromPlayer(hostAddress);
             }
-            UpdateLobbyPresence();
-            _presenceService.SyncLocalPresence(UseLobbySystem, ActiveLobby);
-            PingAllFriends();
+            NotifyLocalLobbyPresenceChanged();
         }
 
-        private void HandleLobbyLeftEvent()
+        private void HandleLobbyLeftEvent() => NotifyLocalLobbyPresenceChanged();
+
+        private void NotifyLocalLobbyPresenceChanged()
         {
             UpdateLobbyPresence();
             _presenceService.SyncLocalPresence(UseLobbySystem, ActiveLobby);
@@ -635,6 +644,27 @@ namespace EOS.Friends
 
         private void HandleLobbyPlayerLeft(ProductUserId _) => UpdateLobbyPresence();
         private void HandleLobbyUpdatedEvent() => UpdateLobbyPresence();
+
+        private void HandlePlatformFriendUpdated(string platformUserId, string displayName, FriendPresenceState presence, Texture2D avatar)
+        {
+            for (int i = 0; i < _cachedPlatformFriends.Count; i++)
+            {
+                PlatformFriend pf = _cachedPlatformFriends[i];
+                if (!string.Equals(pf.PlatformUserId, platformUserId, StringComparison.OrdinalIgnoreCase)) continue;
+
+                pf.DisplayName = displayName;
+                pf.Presence = presence;
+                pf.AvatarTexture = avatar;
+
+                if (presence != FriendPresenceState.Offline && !string.IsNullOrEmpty(pf.ProductUserId))
+                {
+                    PingFriend(pf.ProductUserId);
+                }
+
+                RebuildAndNotify();
+                return;
+            }
+        }
 
         private void UpdateLobbyPresence()
         {
@@ -661,7 +691,10 @@ namespace EOS.Friends
         private void HandleTick()
         {
             _signalChannel?.Tick();
-            _presenceService.Tick(Time.deltaTime, UseLobbySystem, ActiveLobby, _allFriends);
+            if (_presenceService.Tick(Time.deltaTime, UseLobbySystem, ActiveLobby, _allFriends))
+            {
+                RebuildAndNotify();
+            }
         }
 
         private string ResolveCrossPlayDisplayName(string puid)
@@ -683,8 +716,12 @@ namespace EOS.Friends
 
             _presenceService.BroadcastOffline(_allFriends);
             _signalChannel?.Stop();
-            _platformProvider?.Shutdown();
-            _platformProvider = null;
+            if (_platformProvider != null)
+            {
+                _platformProvider.OnFriendUpdated -= HandlePlatformFriendUpdated;
+                _platformProvider.Shutdown();
+                _platformProvider = null;
+            }
             _inviteService.ClearAllInvites();
             _friendsStore.Reset();
             _presenceService.Clear();

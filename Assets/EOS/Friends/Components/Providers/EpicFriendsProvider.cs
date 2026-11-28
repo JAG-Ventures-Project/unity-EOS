@@ -5,6 +5,7 @@ using Epic.OnlineServices;
 using Epic.OnlineServices.Friends;
 using Epic.OnlineServices.Platform;
 using Epic.OnlineServices.UserInfo;
+using UnityEngine;
 using UnityEngine.Assertions;
 
 namespace EOS.Friends
@@ -14,6 +15,7 @@ namespace EOS.Friends
     {
         public LoginProvider Platform => LoginProvider.Epic;
         public bool IsAvailable => _authManager != null && _authManager.LocalEpicAccountId != null && _authManager.LocalEpicAccountId.IsValid();
+        public event Action<string, string, FriendPresenceState, Texture2D> OnFriendUpdated { add { } remove { } }
 
         private readonly PlatformInterface _platformHandle;
         private readonly AuthManager _authManager;

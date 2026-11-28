@@ -26,6 +26,7 @@ namespace EOS.Friends
         private readonly Dictionary<string, string> _peerHostAddress = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _lobbyMemberPuidsBuffer = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _lobbyMemberNamesBuffer = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> _expiredPeersBuffer = new();
 
         private float _lastHeartbeatTimer;
         private FriendPresenceState _lastLocalPresence = FriendPresenceState.Offline;
@@ -56,7 +57,7 @@ namespace EOS.Friends
                 return activeLobby.HasGameStarted ? FriendPresenceState.InMatch : FriendPresenceState.InLobby;
             }
 
-            return FriendPresenceState.Online;
+            return FriendPresenceState.InGame;
         }
 
         public void SyncLocalPresence(bool useLobbySystem, ILobby activeLobby)
@@ -64,7 +65,7 @@ namespace EOS.Friends
             _lastLocalPresence = GetLocalPresenceState(useLobbySystem, activeLobby);
         }
 
-        public void Tick(float deltaTime, bool useLobbySystem, ILobby activeLobby, IReadOnlyList<FriendModel> allFriends)
+        public bool Tick(float deltaTime, bool useLobbySystem, ILobby activeLobby, IReadOnlyList<FriendModel> allFriends)
         {
             _lastHeartbeatTimer += deltaTime;
             FriendPresenceState currentPresence = GetLocalPresenceState(useLobbySystem, activeLobby);
@@ -74,12 +75,17 @@ namespace EOS.Friends
                 _lastLocalPresence = currentPresence;
                 _lastHeartbeatTimer = 0f;
                 PingAllFriends(allFriends, useLobbySystem, activeLobby);
+                return false;
             }
-            else if (_lastHeartbeatTimer >= HeartbeatIntervalSeconds)
-            {
-                _lastHeartbeatTimer = 0f;
-                PingAllFriends(allFriends, useLobbySystem, activeLobby);
-            }
+
+                if (_lastHeartbeatTimer >= HeartbeatIntervalSeconds)
+                {
+                    _lastHeartbeatTimer = 0f;
+                    PingAllFriends(allFriends, useLobbySystem, activeLobby);
+                    return EvictExpiredPeers();
+                }
+
+            return false;
         }
 
         public void PingFriend(string targetPuid, bool useLobbySystem, ILobby activeLobby)
@@ -218,7 +224,7 @@ namespace EOS.Friends
 
             if (!string.IsNullOrEmpty(puid) && IsPeerFresh(puid))
             {
-                return FriendPresenceState.Online;
+                return FriendPresenceState.InGame;
             }
 
             return nativeFallback;
@@ -252,18 +258,48 @@ namespace EOS.Friends
         private void RecordPeerPresence(string senderPuid, FriendSignal signal)
         {
             var state = (FriendPresenceState)signal.presenceState;
-            _onlinePuids[senderPuid] = DateTime.UtcNow;
-            _peerPresence[senderPuid] = state;
-
             if (state == FriendPresenceState.Offline)
             {
+                _onlinePuids.Remove(senderPuid);
+                _peerPresence.Remove(senderPuid);
                 _peerLobbyId.Remove(senderPuid);
                 _peerHostAddress.Remove(senderPuid);
                 return;
             }
 
+            _onlinePuids[senderPuid] = DateTime.UtcNow;
+            _peerPresence[senderPuid] = state;
+
             if (!string.IsNullOrEmpty(signal.lobbyId)) _peerLobbyId[senderPuid] = signal.lobbyId;
             if (!string.IsNullOrEmpty(signal.hostAddress)) _peerHostAddress[senderPuid] = signal.hostAddress;
+        }
+
+        private bool EvictExpiredPeers()
+        {
+            if (_onlinePuids.Count == 0) return false;
+
+            DateTime now = DateTime.UtcNow;
+            _expiredPeersBuffer.Clear();
+            foreach (KeyValuePair<string, DateTime> kvp in _onlinePuids)
+            {
+                if ((now - kvp.Value).TotalSeconds >= PeerOnlineTimeoutSeconds)
+                {
+                    _expiredPeersBuffer.Add(kvp.Key);
+                }
+            }
+
+            if (_expiredPeersBuffer.Count == 0) return false;
+
+            for (int i = 0; i < _expiredPeersBuffer.Count; i++)
+            {
+                string puid = _expiredPeersBuffer[i];
+                _onlinePuids.Remove(puid);
+                _peerPresence.Remove(puid);
+                _peerLobbyId.Remove(puid);
+                _peerHostAddress.Remove(puid);
+            }
+
+            return true;
         }
 
         private FriendSignal BuildPresenceSignal(FriendSignalType type, string targetPuid, bool useLobbySystem, ILobby activeLobby)
@@ -293,7 +329,7 @@ namespace EOS.Friends
 
             return _peerPresence.TryGetValue(key, out FriendPresenceState peerState)
                 ? peerState
-                : FriendPresenceState.Online;
+                : FriendPresenceState.InGame;
         }
 
         private bool IsPeerFresh(string puid)
